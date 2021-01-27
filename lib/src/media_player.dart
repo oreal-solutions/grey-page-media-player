@@ -30,11 +30,11 @@ import 'package:npxl_video/generated/npxl_video.pb.dart';
 /// and a soft seek. A hard seek is any seek that moves [seekPosition] to a
 /// position the [MediaPlayer] does not have buffered Media Pages for. The
 /// [MediaPlayer] resolves hard seeks by running the full buffer coroutine
-/// which places the Media Player in a [MediaPlayerState.buffering] state
-/// and then fetches the data to fill the forward buffer to its maximum size.
-/// The maximum size of the forward buffer can be set with
-/// [setForwardBufferSize]. Any calls to [getCurrentVectorFrame] or
-/// [getCurrentVectorFrameAndPushAudio] in the buffering state will return a
+/// which places the Media Player in a [MediaPlayerState.buffering] state,
+/// pauses the [seekPosition] counter and then fetches the data to fill the
+/// forward buffer to its maximum size. The maximum size of the forward buffer
+/// can be set with [setForwardBufferSize]. Any calls to [getCurrentVectorFrame]
+/// or [getCurrentVectorFrameAndPushAudio] in the buffering state will return a
 /// `void` vector frame and no audio will be pushed. Before playing the newly
 /// fetched media pages after a hard seek, the [MediaPlayer] will call the
 /// given [Opus16Decoder] with a empty data and discard the results.
@@ -47,7 +47,8 @@ import 'package:npxl_video/generated/npxl_video.pb.dart';
 /// buffered Media Pages for. Soft seeks trigger soft buffering when the data
 /// in the forward buffer is filled with less than 70% of its maximum size.
 /// Soft buffering is the same as the last part of full buffering which is
-/// basically filling the forward buffer more media pages to its maximum size.
+/// basically filling the forward buffer with more media pages to its maximum
+/// size.
 ///
 /// The forward buffer is the buffer holding Media Pages from the current
 /// [seekPosition] onwards in the increasing side of [seekPosition]. It's size
@@ -71,7 +72,7 @@ import 'package:npxl_video/generated/npxl_video.pb.dart';
 /// [lastError].
 ///
 /// When the [MediaPlayer] finishes playing the video, it will pause itself.
-/// [replay] can be used to play the video all over again from the beginning.
+/// Call [replay] to play the video all over again from the beginning.
 abstract class MediaPlayer extends ChangeNotifier {
   /// The duration of the video.
   ///
@@ -88,29 +89,40 @@ abstract class MediaPlayer extends ChangeNotifier {
 
   dynamic get lastError;
 
+  /// Initialises the video [MediaPlayer].
+  ///
+  /// Listeners will be notified after successful initialissation.
   Future<void> initialiseWith(VideoReader videoReader,
       {Opus16Decoder opus16decoder, PCM16AudioPlayer pcm16audioPlayer});
 
   /// Resume or begin playback.
+  ///
+  /// This resumes the [seekPosition] counter.
   void play();
 
   /// Pause playback.
+  ///
+  /// This pauses the [seekPosition] counter.
   void pause();
 
   /// Stop playback.
   ///
   /// Resets the [seekPosition] back to zero, discards the buffered Media Pages,
   /// and clears the given [PCM16AudioPlayer] buffer.
+  ///
+  /// After calling this method, the MediaPlayer will be in a paused state.
   void stop();
 
   /// Replay the video.
+  ///
+  /// Replaying is done by setting [seekPosition] to zero.
   void replay();
 
   /// Sets [seekPosition] to the given position, [to].
   ///
   /// If [to] is equal to or greater than the [videoDuration], the [MediaPlayer] will
   /// assume it is finished playing the video and, therefore, pause itself.
-  void seek(Duration to);
+  void seek({@required Duration to});
 
   /// Returns the vector frame for the current [seekPosition].
   ///
@@ -136,6 +148,9 @@ abstract class MediaPlayer extends ChangeNotifier {
   void trySoftBufferingAgain();
 
   /// Release the given [VideoReader], [Opus16Decoder], and [PCM16AudioPlayer].
+  ///
+  /// After calling this method the [MediaPlayer] will be in a [MediaPlayerState.defunct]
+  /// state.
   void release();
 
   /// Builds and returns an uninitialised [MediaPlayer] instance.
