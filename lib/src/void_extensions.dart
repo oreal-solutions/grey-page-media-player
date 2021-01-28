@@ -13,3 +13,11 @@ extension VoidRenderingInstructions on RenderingInstructions {
 extension VoidReadableMediaPage on ReadableMediaPage {
   bool get isVoid => this.header == null;
 }
+
+class Void {
+  bool get isVoid => true;
+}
+
+extension VoidDynamic on dynamic {
+  bool get isVoid => this.isVoid;
+}
