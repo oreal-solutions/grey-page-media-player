@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
 import 'package:grey_page_media_player/src/audio/opus16_decoder.dart';
 import 'package:grey_page_media_player/src/audio/pcm16_audio_player.dart';
+import 'package:grey_page_media_player/src/readers/timed_media_queue.dart';
 import 'package:grey_page_media_player/src/readers/video_reader.dart';
+import 'package:grey_page_media_player/src/void_extensions.dart';
 import 'package:npxl_video/generated/npxl_video.pb.dart';
+import 'package:npxl_video/npxl_video.dart';
 
 /// A video playback coordinater from a [VideoReader].
 ///
@@ -42,7 +47,7 @@ import 'package:npxl_video/generated/npxl_video.pb.dart';
 /// start decoding audio from the current [seekPosition] without having to
 /// worry about the skipped frames.
 ///
-/// A soft seek is any seek is that is not a hard seek. That is any
+/// A soft seek is any seek that is not a hard seek. That is any
 /// seek that sets [seekPosition] to a position the [MediaPlayer] does have
 /// buffered Media Pages for. Soft seeks trigger soft buffering when the data
 /// in the forward buffer is filled with less than 70% of its maximum size.
@@ -61,7 +66,7 @@ import 'package:npxl_video/generated/npxl_video.pb.dart';
 /// Soft and full buffering are asynchronous operations done with Futures. When
 /// an error is thrown during a buffering operation, [lastError] will be set to
 /// to the thrown error. If this happens during soft buffering, the [MediaPlayer]
-/// will continue playing in [MediaPlayerState.playingWithNoSoftBuffering]
+/// will continue playing but soft buffering will be turned off.
 /// until it runs out of Media Pages in which case it will attempt full buffering.
 /// When an error is thrown during full buffering, the [MediaPlayer] will go into
 /// a [MediaPlayerState.defunct] state, in which case it should no longer be used.
@@ -86,6 +91,8 @@ abstract class MediaPlayer extends ChangeNotifier {
   ///
   /// Listeners are notified when this value changes.
   MediaPlayerState get state;
+
+  bool get isSoftBufferingEnabled;
 
   dynamic get lastError;
 
@@ -134,7 +141,7 @@ abstract class MediaPlayer extends ChangeNotifier {
   ///
   /// If it happens that the vector frame is returned for more than the first time
   /// in a row, the audio frame will not be written to the [PCM16AudioPlayer] for the
-  /// consecutive times, i.e the audio frame is written only once in the duration the
+  /// successive times, i.e the audio frame is written only once in the duration the
   /// vector frame is displayed on screen.
   RenderingInstructions getCurrentVectorFrameAndPushAudio();
 
@@ -143,8 +150,7 @@ abstract class MediaPlayer extends ChangeNotifier {
 
   /// Tells the [MediaPlayer] to attempt soft buffering again.
   ///
-  /// This should be done when the [MediaPlayer] is in a
-  /// [MediaPlayerState.playingWithNoSoftBuffering] state.
+  /// This should be done when [isSoftBufferingEnabled] is false.
   void trySoftBufferingAgain();
 
   /// Release the given [VideoReader], [Opus16Decoder], and [PCM16AudioPlayer].
@@ -154,21 +160,14 @@ abstract class MediaPlayer extends ChangeNotifier {
   void release();
 
   /// Builds and returns an uninitialised [MediaPlayer] instance.
-  factory MediaPlayer.makeInstance() {
-    throw UnimplementedError();
+  static MediaPlayer makeInstance() {
+    return _MediaPlayer();
   }
 }
 
 enum MediaPlayerState {
   /// The [MediaPlayer] is playing the video.
   playing,
-
-  /// The [MediaPlayer] is playing the video but does not run
-  /// the soft buffering algorithm when it is supposed to.
-  ///
-  /// This happens when the soft buffering coroutine catches
-  /// an error from the provided [VideoReader].
-  playingWithNoSoftBuffering,
 
   /// The [MediaPlayer] is currently paused.
   ///
@@ -190,4 +189,344 @@ enum MediaPlayerState {
   ///
   /// This is when the [MediaPlayer] has just gone a hard seek.
   buffering,
+}
+
+class _MediaPlayer extends MediaPlayer {
+  Stopwatch seekPositionCounter = Stopwatch();
+  _MediaPageBuffersController buffersController = _MediaPageBuffersController();
+  ReadableMediaPage lastQueuedNonVoidMediaPage =
+      ReadableMediaPage(null, Uint8List(0));
+
+  _MediaPageReadyToPlay mediaPageWhoseAudioWasLastPushed =
+      _MediaPageReadyToPlay.voidInstance();
+
+  dynamic lastError = Void();
+  MediaPlayerState state = MediaPlayerState.paused;
+
+  VideoReader videoReader;
+  Opus16Decoder audioDecoder;
+  PCM16AudioPlayer audioPlayer;
+
+  Duration videoDuration;
+
+  bool isSoftBufferingEnabled = true;
+
+  @override
+  Future<void> initialiseWith(VideoReader videoReader,
+      {Opus16Decoder opus16decoder, PCM16AudioPlayer pcm16audioPlayer}) async {
+    this.videoReader = videoReader;
+    this.audioDecoder = opus16decoder;
+    this.audioPlayer = pcm16audioPlayer;
+
+    await videoReader.initialise();
+    final audioProperties = await videoReader.getAudioProperties();
+    videoDuration = await videoReader.getVideoDuration();
+
+    if (audioDecoder != null) await audioDecoder.initialise(audioProperties);
+    if (audioPlayer != null) await audioPlayer.initialise(audioProperties);
+
+    notifyListeners();
+  }
+
+  @override
+  void pause() {
+    seekPositionCounter.stop();
+    state = MediaPlayerState.paused;
+    notifyListeners();
+  }
+
+  @override
+  void play() {
+    seekPositionCounter.start();
+    state = MediaPlayerState.playing;
+    notifyListeners();
+  }
+
+  @override
+  void stop() {
+    state = MediaPlayerState.paused;
+    seekPositionCounter.stop();
+    seekPositionCounter.reset();
+
+    audioPlayer?.clearBuffer();
+    notifyListeners();
+  }
+
+  @override
+  void release() {
+    videoReader.release();
+    audioDecoder?.release();
+    audioPlayer?.release();
+    state = MediaPlayerState.defunct;
+    lastError = Void();
+    notifyListeners();
+  }
+
+  @override
+  void replay() {
+    stop();
+    play();
+  }
+
+  @override
+  void seek({Duration to}) {
+    seekPositionCounter = _StopwatchWithOffset(to);
+  }
+
+  @override
+  Duration get seekPosition => seekPositionCounter.elapsed;
+
+  @override
+  void setForwardBufferSize(Duration forwardBufferSize) {
+    buffersController.setForwardBufferSize(forwardBufferSize);
+  }
+
+  @override
+  void trySoftBufferingAgain() {
+    isSoftBufferingEnabled = true;
+    doSoftBufferingIfEnabled();
+    notifyListeners();
+  }
+
+  @override
+  RenderingInstructions getCurrentVectorFrame([bool pushAudio = false]) {
+    final mediaPage = updateAndReturnVideoFinishedStatus()
+        ? buffersController.getLastMediaPage()
+        : buffersController.getMediaPageAt(
+            seekPosition,
+            whenNeedsSoftBuffering: doSoftBufferingIfEnabled,
+            whenNeedsFullBuffering: doFullBuffering,
+          );
+
+    if (mediaPage.isVoid) return RenderingInstructions();
+
+    bool audioWasPushed =
+        mediaPageWhoseAudioWasLastPushed.headerEquals(mediaPage.header);
+    if (!audioWasPushed && pushAudio) {
+      audioPlayer?.writeToBuffer(mediaPage.decodedAudio);
+      mediaPageWhoseAudioWasLastPushed = mediaPage;
+    }
+
+    return mediaPage.vectorFrame;
+  }
+
+  @override
+  RenderingInstructions getCurrentVectorFrameAndPushAudio() {
+    return getCurrentVectorFrame(true);
+  }
+
+  bool updateAndReturnVideoFinishedStatus() {
+    bool finished =
+        videoDuration > Duration.zero && seekPosition >= videoDuration;
+    if (finished) pause();
+
+    return finished;
+  }
+
+  Future<void> doFullBuffering() async {
+    try {
+      buffersController.clearBuffers();
+      final lastState = state;
+      state = MediaPlayerState.buffering;
+      notifyListeners();
+      await fetchAndQueueMediaPagesInRange(
+          seekPosition, seekPosition + buffersController.sizeOfForwardBuffer);
+      state = lastState;
+      audioDecoder?.decode(Uint8List(0));
+      notifyListeners();
+    } catch (e) {
+      lastError = e;
+      state = MediaPlayerState.defunct;
+      videoReader.release();
+      audioDecoder?.release();
+      audioPlayer?.release();
+      notifyListeners();
+    }
+  }
+
+  Future<void> doSoftBufferingIfEnabled() async {
+    if (isSoftBufferingEnabled) {
+      try {
+        await fetchAndQueueMediaPagesInRange(
+            buffersController.endSeekPositionOfTheLastMediaPageInQueue,
+            buffersController.endSeekPositionOfTheLastMediaPageInQueue +
+                buffersController
+                    .getSizeOfFowardBufferSpaceToFill(seekPosition));
+      } catch (e) {
+        lastError = e;
+        isSoftBufferingEnabled = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> fetchAndQueueMediaPagesInRange(
+    Duration start,
+    Duration end,
+  ) async {
+    final returnedMediaPages =
+        await videoReader.getMediaPagesInRange(start, end);
+    for (var mediaPage in returnedMediaPages) {
+      _MediaPageReadyToPlay decodedMediaPage =
+          _MediaPageReadyToPlay.voidInstance();
+
+      if (mediaPage.isVoid) {
+        decodedMediaPage = recreateLostMediaPage();
+        if (decodedMediaPage.isVoid) continue;
+      } else {
+        lastQueuedNonVoidMediaPage = mediaPage;
+
+        var decodedAudio = Uint8List(0);
+        if (mediaPage.compressedAudioData.isNotEmpty) {
+          decodedAudio = audioDecoder?.decode(mediaPage.compressedAudioData) ??
+              Uint8List(0);
+        }
+
+        decodedMediaPage =
+            _MediaPageReadyToPlay(mediaPage.header, decodedAudio);
+      }
+
+      buffersController.queueMediaPage(
+          decodedMediaPage,
+          buffersController.endSeekPositionOfTheLastMediaPageInQueue,
+          Duration(milliseconds: decodedMediaPage.header.pageDurationInMillis));
+    }
+  }
+
+  _MediaPageReadyToPlay recreateLostMediaPage() {
+    if (lastQueuedNonVoidMediaPage.isVoid)
+      return _MediaPageReadyToPlay.voidInstance();
+
+    final recreatedAudio = audioDecoder?.decode(Uint8List(0)) ?? Uint8List(0);
+    return _MediaPageReadyToPlay(
+        lastQueuedNonVoidMediaPage.header, recreatedAudio);
+  }
+}
+
+class _StopwatchWithOffset implements Stopwatch {
+  final Duration _offset;
+  final Stopwatch _counter = Stopwatch();
+
+  _StopwatchWithOffset(this._offset) : assert(_offset != null);
+
+  @override
+  Duration get elapsed => _offset + _counter.elapsed;
+
+  @override
+  int get elapsedMicroseconds => elapsed.inMicroseconds;
+
+  @override
+  int get elapsedMilliseconds => elapsed.inMilliseconds;
+
+  @override
+  int get elapsedTicks => _counter.elapsedTicks;
+
+  @override
+  int get frequency => _counter.frequency;
+
+  @override
+  bool get isRunning => _counter.isRunning;
+
+  @override
+  void reset() => _counter.reset();
+
+  @override
+  void start() => _counter.start();
+
+  @override
+  void stop() => _counter.stop();
+}
+
+/// Controlls the forward and backward buffers of a MediaPlayer.
+class _MediaPageBuffersController {
+  Duration seventyPercentOf(Duration duration) => duration * 0.7;
+
+  final TimedMediaQueue<_MediaPageReadyToPlay> _mediaQueue =
+      TimedMediaQueue.makeEmptyQueue();
+
+  Duration _sizeOfBackwardBuffer = Duration(seconds: 10);
+  Duration _sizeOfForwardBuffer = Duration(seconds: 15);
+
+  void setForwardBufferSize(Duration size) {
+    _sizeOfBackwardBuffer = seventyPercentOf(size);
+    _sizeOfForwardBuffer = size;
+  }
+
+  Duration get sizeOfForwardBuffer => _sizeOfForwardBuffer;
+
+  Duration getSizeOfFowardBufferSpaceToFill(Duration seekPosition) {
+    final usedForwardBufferSpace =
+        endSeekPositionOfTheLastMediaPageInQueue - seekPosition;
+
+    return _sizeOfForwardBuffer - usedForwardBufferSpace;
+  }
+
+  Duration get endSeekPositionOfTheLastMediaPageInQueue {
+    if (_mediaQueue.isEmpty) return Duration.zero;
+
+    return _mediaQueue.lastItem.startSeekPosition +
+        _mediaQueue.lastItem.mediaLength;
+  }
+
+  _MediaPageReadyToPlay getLastMediaPage() {
+    try {
+      return _mediaQueue.lastItem.media;
+    } catch (e) {
+      return _MediaPageReadyToPlay.voidInstance();
+    }
+  }
+
+  _MediaPageReadyToPlay getMediaPageAt(Duration seekPosition,
+      {@required VoidCallback whenNeedsSoftBuffering,
+      @required VoidCallback whenNeedsFullBuffering}) {
+    final ret = _mediaQueue.getMediaAt(seekPosition,
+        orElse: () => _MediaPageReadyToPlay.voidInstance());
+
+    if (ret.isVoid) {
+      whenNeedsFullBuffering();
+      return ret;
+    }
+
+    // Check if soft buffering is needed.
+    final usedForwardBufferSpace =
+        endSeekPositionOfTheLastMediaPageInQueue - seekPosition;
+    if (usedForwardBufferSpace < seventyPercentOf(_sizeOfForwardBuffer))
+      whenNeedsSoftBuffering();
+
+    // Make sure the backward buffer is not holding media more than its capacity.
+    final usedBackwardBufferSpace =
+        seekPosition - _mediaQueue.firstItem.startSeekPosition;
+    if (usedBackwardBufferSpace > _sizeOfBackwardBuffer) {
+      final lengthInFrontToRemove =
+          usedBackwardBufferSpace - _sizeOfBackwardBuffer;
+      _mediaQueue.removeFrontWithLength(lengthInFrontToRemove);
+    }
+
+    return ret;
+  }
+
+  void queueMediaPage(_MediaPageReadyToPlay mediaPage,
+      Duration startSeekPosition, Duration mediaLength) {
+    _mediaQueue.add(mediaPage, startSeekPosition, mediaLength);
+  }
+
+  void clearBuffers() {
+    _mediaQueue.clear();
+  }
+}
+
+class _MediaPageReadyToPlay {
+  final MediaPageHeader header;
+  final Uint8List decodedAudio;
+
+  _MediaPageReadyToPlay(this.header, this.decodedAudio);
+
+  bool get isVoid => this.vectorFrame == null;
+
+  RenderingInstructions get vectorFrame => header?.vectorFrame;
+
+  bool headerEquals(MediaPageHeader otherHeader) => this.header == otherHeader;
+
+  factory _MediaPageReadyToPlay.voidInstance() =>
+      _MediaPageReadyToPlay(null, Uint8List(0));
 }

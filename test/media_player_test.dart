@@ -48,7 +48,7 @@ class MockOpus16Decoder extends Mock implements Opus16Decoder {}
 final readableMediaPage2Seconds = ReadableMediaPage(
   MediaPageHeader(
     mediaPageNumber: 0,
-    pageDurationInMillis: Duration(seconds: 2).inMicroseconds,
+    pageDurationInMillis: Duration(seconds: 2).inMilliseconds,
     vectorFrame: RenderingInstructions(viewport: Viewport(width: 200)),
   ),
   Uint8List.fromList([0xaa, 0xbb, 0xcc]),
@@ -57,7 +57,7 @@ final readableMediaPage2Seconds = ReadableMediaPage(
 final readableMediaPage1Second = ReadableMediaPage(
   MediaPageHeader(
     mediaPageNumber: 1,
-    pageDurationInMillis: Duration(seconds: 1).inMicroseconds,
+    pageDurationInMillis: Duration(seconds: 1).inMilliseconds,
     vectorFrame: RenderingInstructions(viewport: Viewport(width: 100)),
   ),
   Uint8List.fromList([0xdd, 0xee, 0xff]),
@@ -66,7 +66,7 @@ final readableMediaPage1Second = ReadableMediaPage(
 final readableMediaPage3Seconds = ReadableMediaPage(
   MediaPageHeader(
     mediaPageNumber: 2,
-    pageDurationInMillis: Duration(seconds: 3).inMicroseconds,
+    pageDurationInMillis: Duration(seconds: 3).inMilliseconds,
     vectorFrame: RenderingInstructions(viewport: Viewport(width: 300)),
   ),
   Uint8List.fromList([0xab, 0xbc, 0xcd]),
@@ -75,7 +75,7 @@ final readableMediaPage3Seconds = ReadableMediaPage(
 final readableMediaPage10Seconds = ReadableMediaPage(
   MediaPageHeader(
     mediaPageNumber: 3,
-    pageDurationInMillis: Duration(seconds: 10).inMicroseconds,
+    pageDurationInMillis: Duration(seconds: 10).inMilliseconds,
     vectorFrame: RenderingInstructions(viewport: Viewport(width: 400)),
   ),
   Uint8List.fromList([0xac, 0xcd, 0xef]),
@@ -100,39 +100,39 @@ void main() {
 
   group("MediaPlayer Tests", () {
     test(
-        "Should return the smae videoDuration as the one returned by the provided VideoReader",
-        () {
+        "Should return the same videoDuration as the one returned by the provided VideoReader",
+        () async {
       final instance = MediaPlayer.makeInstance();
-      instance.initialiseWith(StubbedVideoReader(
+      await instance.initialiseWith(StubbedVideoReader(
           duration: Duration(minutes: 4), audioProperties: AudioProperties()));
 
       expect(instance.videoDuration, Duration(minutes: 4));
     });
 
     group("initialiseWith", () {
-      test("Should put the MediaPlayer in a paused state", () {
+      test("Should put the MediaPlayer in a paused state", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
             duration: Duration.zero, audioProperties: AudioProperties()));
 
         expect(instance.state, MediaPlayerState.paused);
       });
 
-      test("Should set the seekPosition to zero", () {
+      test("Should set the seekPosition to zero", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
             duration: Duration.zero, audioProperties: AudioProperties()));
 
         expect(instance.seekPosition, Duration.zero);
       });
 
-      test("Should notify listeners", () {
+      test("Should notify listeners", () async {
         bool wasListenerCalled = false;
 
         final instance = MediaPlayer.makeInstance();
         instance.addListener(() => wasListenerCalled = true);
 
-        instance.initialiseWith(StubbedVideoReader(
+        await await instance.initialiseWith(StubbedVideoReader(
             duration: Duration.zero, audioProperties: AudioProperties()));
 
         expect(wasListenerCalled, isTrue);
@@ -140,38 +140,42 @@ void main() {
 
       test(
           "Should initialise the given VideoReader, Opus16Decoder, and PCM16AudioPlayer",
-          () {
+          () async {
         final instance = MediaPlayer.makeInstance();
         final videoReader = StubbedVideoReader(
           duration: Duration.zero,
           audioProperties: AudioProperties(),
         );
-        instance.initialiseWith(
+
+        when(audioDecoder.initialise(any)).thenAnswer((_) async {});
+        when(audioPlayer.initialise(any)).thenAnswer((_) async {});
+
+        await instance.initialiseWith(
           videoReader,
           opus16decoder: audioDecoder,
           pcm16audioPlayer: audioPlayer,
         );
 
         expect(videoReader.wasInitialised, isTrue);
-        verify(audioDecoder.initialise(any)).called(1);
-        verify(audioPlayer.initialise(any)).called(1);
+        verify(audioDecoder.initialise(AudioProperties())).called(1);
+        verify(audioPlayer.initialise(AudioProperties())).called(1);
       });
     });
 
     group("play()", () {
-      test("Should put the MediaPlayer in a playing state", () {
+      test("Should put the MediaPlayer in a playing state", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
             duration: Duration.zero, audioProperties: AudioProperties()));
         instance.play();
 
         expect(instance.state, MediaPlayerState.playing);
       });
-      test("Should notify listeners", () {
+      test("Should notify listeners", () async {
         bool wasListenerCalled = false;
 
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
             duration: Duration.zero, audioProperties: AudioProperties()));
 
         instance.addListener(() => wasListenerCalled = true);
@@ -184,7 +188,7 @@ void main() {
     group("pause()", () {
       test("Should pause the seekPosition counter", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
             duration: Duration.zero, audioProperties: AudioProperties()));
         instance.play();
 
@@ -193,9 +197,9 @@ void main() {
 
         expect(instance.seekPosition, lessThan(Duration(milliseconds: 100)));
       });
-      test("Should put the MediaPlayer in a paused state", () {
+      test("Should put the MediaPlayer in a paused state", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
             duration: Duration.zero, audioProperties: AudioProperties()));
         instance.play();
 
@@ -203,11 +207,11 @@ void main() {
 
         expect(instance.state, MediaPlayerState.paused);
       });
-      test("Should notify listeners", () {
+      test("Should notify listeners", () async {
         bool wasListenerCalled = false;
 
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
             duration: Duration.zero, audioProperties: AudioProperties()));
         instance.play();
 
@@ -218,9 +222,9 @@ void main() {
     });
 
     group("stop()", () {
-      test("Should clear the given PCM16AudioPlayer", () {
+      test("Should clear the given PCM16AudioPlayer", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(
+        await instance.initialiseWith(
           StubbedVideoReader(
             duration: Duration.zero,
             audioProperties: AudioProperties(),
@@ -236,7 +240,7 @@ void main() {
       });
       test("Should set the seekPosition to zero", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
           duration: Duration.zero,
           audioProperties: AudioProperties(),
         ));
@@ -248,7 +252,7 @@ void main() {
       });
       test("Should pause the seekPosition counter", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
           duration: Duration.zero,
           audioProperties: AudioProperties(),
         ));
@@ -259,9 +263,9 @@ void main() {
         await Future.delayed(Duration(milliseconds: 100));
         expect(instance.seekPosition, Duration.zero);
       });
-      test("Should put the MediaPlayer in a paused state", () {
+      test("Should put the MediaPlayer in a paused state", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
           duration: Duration.zero,
           audioProperties: AudioProperties(),
         ));
@@ -270,11 +274,11 @@ void main() {
         instance.stop();
         expect(instance.state, MediaPlayerState.paused);
       });
-      test("Should notify listeners", () {
+      test("Should notify listeners", () async {
         bool wasListenerCalled = false;
 
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
           duration: Duration.zero,
           audioProperties: AudioProperties(),
         ));
@@ -288,9 +292,9 @@ void main() {
     });
 
     group("seek(Duration to)", () {
-      test("Should set seekPosition to the new seekPosition", () {
+      test("Should set seekPosition to the new seekPosition", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
           duration: Duration.zero,
           audioProperties: AudioProperties(),
         ));
@@ -305,13 +309,14 @@ void main() {
           "Returns a void vector frame when the MediaPlayer is in the buffering state",
           () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(videoReader);
 
         when(videoReader.initialise()).thenAnswer((_) async {});
         when(videoReader.getVideoDuration())
             .thenAnswer((_) async => Duration.zero);
         when(videoReader.getAudioProperties())
             .thenAnswer((_) async => AudioProperties());
+
+        await instance.initialiseWith(videoReader);
 
         // Will cause a delay in the buffering.
         when(videoReader.getMediaPagesInRange(any, any)).thenAnswer(
@@ -328,7 +333,7 @@ void main() {
           "Should return the very first frame in the video when seekPosition is at zero",
           () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
             duration: Duration.zero,
             audioProperties: AudioProperties(),
             mediaPages: [
@@ -348,7 +353,7 @@ void main() {
       });
       test("Should return the frame at the current seekPosition", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
             duration: Duration.zero,
             audioProperties: AudioProperties(),
             mediaPages: [
@@ -372,7 +377,7 @@ void main() {
           "Should return last frame in the video when seekPosition equals the duration of the video",
           () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
             duration: Duration(seconds: 6),
             audioProperties: AudioProperties(),
             mediaPages: [
@@ -394,7 +399,7 @@ void main() {
           "Should return the last frame in the video when seekPosition is greater than the duration of the video",
           () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(StubbedVideoReader(
+        await instance.initialiseWith(StubbedVideoReader(
             duration: Duration(seconds: 6),
             audioProperties: AudioProperties(),
             mediaPages: [
@@ -417,7 +422,7 @@ void main() {
         test("It should return the last returned non void vector frame",
             () async {
           final instance = MediaPlayer.makeInstance();
-          instance.initialiseWith(StubbedVideoReader(
+          await instance.initialiseWith(StubbedVideoReader(
               duration: Duration.zero,
               audioProperties: AudioProperties(),
               mediaPages: [
@@ -442,7 +447,7 @@ void main() {
             () {
           test("It should return the next non void vector frame", () async {
             final instance = MediaPlayer.makeInstance();
-            instance.initialiseWith(StubbedVideoReader(
+            await instance.initialiseWith(StubbedVideoReader(
                 duration: Duration.zero,
                 audioProperties: AudioProperties(),
                 mediaPages: [
@@ -470,7 +475,7 @@ void main() {
           "Returns a void vector frame without pushing audio when the MediaPlayer is in the buffering state",
           () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(
+        await instance.initialiseWith(
           StubbedVideoReader(
             duration: Duration.zero,
             audioProperties: AudioProperties(),
@@ -504,7 +509,7 @@ void main() {
             "Should return the vector frame of and push the decoded audio of the first MediaPage when seekPosition is at zero",
             () async {
           final instance = MediaPlayer.makeInstance();
-          instance.initialiseWith(
+          await instance.initialiseWith(
             StubbedVideoReader(
                 duration: Duration.zero,
                 audioProperties: AudioProperties(),
@@ -520,7 +525,6 @@ void main() {
           when(audioDecoder
                   .decode(readableMediaPage2Seconds.compressedAudioData))
               .thenReturn(Uint8List.fromList([0xcc, 0xbb]));
-          when(audioDecoder.decode(any)).thenReturn(Uint8List(0));
 
           // Initiate full buffering
           instance.getCurrentVectorFrameAndPushAudio();
@@ -538,7 +542,7 @@ void main() {
             "Should return the vector frame of and push the decoded audio of the MediaPage at the current seekPosition",
             () async {
           final instance = MediaPlayer.makeInstance();
-          instance.initialiseWith(
+          await instance.initialiseWith(
             StubbedVideoReader(
                 duration: Duration.zero,
                 audioProperties: AudioProperties(),
@@ -554,7 +558,6 @@ void main() {
           when(audioDecoder
                   .decode(readableMediaPage3Seconds.compressedAudioData))
               .thenReturn(Uint8List.fromList([0xaa, 0xbb]));
-          when(audioDecoder.decode(any)).thenReturn(Uint8List(0));
 
           // Initiate full buffering
           instance.getCurrentVectorFrameAndPushAudio();
@@ -574,7 +577,7 @@ void main() {
             "Should return the vector frame of and push the decoded audio of the last MediaPage when seekPosition equals the duration of the video",
             () async {
           final instance = MediaPlayer.makeInstance();
-          instance.initialiseWith(
+          await instance.initialiseWith(
             StubbedVideoReader(
                 duration: Duration(seconds: 6),
                 audioProperties: AudioProperties(),
@@ -590,7 +593,6 @@ void main() {
           when(audioDecoder
                   .decode(readableMediaPage1Second.compressedAudioData))
               .thenReturn(Uint8List.fromList([0xaa, 0xdd]));
-          when(audioDecoder.decode(any)).thenReturn(Uint8List(0));
 
           // Initiate full buffering
           instance.getCurrentVectorFrameAndPushAudio();
@@ -608,7 +610,7 @@ void main() {
             "Should return the vector frame of and push the decoded audio of the last MediaPage when seekPosition is greater than the duration of the video",
             () async {
           final instance = MediaPlayer.makeInstance();
-          instance.initialiseWith(
+          await instance.initialiseWith(
             StubbedVideoReader(
                 duration: Duration(seconds: 6),
                 audioProperties: AudioProperties(),
@@ -621,16 +623,15 @@ void main() {
             pcm16audioPlayer: audioPlayer,
           );
 
+          when(audioDecoder
+                  .decode(readableMediaPage1Second.compressedAudioData))
+              .thenReturn(Uint8List.fromList([0xaa, 0xdd]));
+
           // Initiate full buffering
           instance.getCurrentVectorFrameAndPushAudio();
           await Future.delayed(Duration(milliseconds: 1));
 
           instance.seek(to: Duration(seconds: 10));
-
-          when(audioDecoder
-                  .decode(readableMediaPage1Second.compressedAudioData))
-              .thenReturn(Uint8List.fromList([0xaa, 0xdd]));
-          when(audioDecoder.decode(any)).thenReturn(Uint8List(0));
 
           expect(instance.getCurrentVectorFrameAndPushAudio(),
               readableMediaPage1Second.header.vectorFrame);
@@ -642,7 +643,7 @@ void main() {
         group("When the vector frame comes from a MediaPage with no audio", () {
           test("Should not call the given Opus16Decoder", () async {
             final instance = MediaPlayer.makeInstance();
-            instance.initialiseWith(
+            await instance.initialiseWith(
               StubbedVideoReader(
                   duration: Duration.zero,
                   audioProperties: AudioProperties(),
@@ -654,9 +655,10 @@ void main() {
               pcm16audioPlayer: audioPlayer,
             );
 
-            // Initiate full buffering
+            // Initiate full buffering.
             instance.getCurrentVectorFrameAndPushAudio();
             await Future.delayed(Duration(milliseconds: 1));
+            reset(audioDecoder);
 
             instance.seek(to: Duration.zero);
 
@@ -674,7 +676,7 @@ void main() {
             "Should return the vector frame without pushing its audio in in the successive times",
             () async {
           final instance = MediaPlayer.makeInstance();
-          instance.initialiseWith(
+          await instance.initialiseWith(
             StubbedVideoReader(
                 duration: Duration.zero,
                 audioProperties: AudioProperties(),
@@ -705,10 +707,10 @@ void main() {
           "When the Media Page of the vector frame at the current seekPosition is void",
           () {
         test(
-            "It should return the vector frame of and push the decoded audio of the last non void Media Page",
+            "It should return the vector frame of the last non void Media Page and push the recreated decoded audio",
             () async {
           final instance = MediaPlayer.makeInstance();
-          instance.initialiseWith(
+          await instance.initialiseWith(
             StubbedVideoReader(
                 duration: Duration.zero,
                 audioProperties: AudioProperties(),
@@ -723,10 +725,8 @@ void main() {
             pcm16audioPlayer: audioPlayer,
           );
 
-          when(audioDecoder
-                  .decode(readableMediaPage2Seconds.compressedAudioData))
+          when(audioDecoder.decode(Uint8List(0)))
               .thenReturn(Uint8List.fromList([0xaa, 0xdd]));
-          when(audioDecoder.decode(any)).thenReturn(Uint8List(0));
 
           // Initiate full buffering
           instance.getCurrentVectorFrameAndPushAudio();
@@ -748,7 +748,7 @@ void main() {
               "It should return the vector frame of and push the decoded audio of the next Media Page",
               () async {
             final instance = MediaPlayer.makeInstance();
-            instance.initialiseWith(
+            await instance.initialiseWith(
               StubbedVideoReader(
                   duration: Duration.zero,
                   audioProperties: AudioProperties(),
@@ -765,7 +765,6 @@ void main() {
             when(audioDecoder
                     .decode(readableMediaPage3Seconds.compressedAudioData))
                 .thenReturn(Uint8List.fromList([0xaa, 0xdd]));
-            when(audioDecoder.decode(any)).thenReturn(Uint8List(0));
 
             // Initiate full buffering
             instance.getCurrentVectorFrameAndPushAudio();
@@ -786,13 +785,13 @@ void main() {
     group("release()", () {
       test(
           "Should release the given VideoReader, Opus16Decoder, and PCM16AudioPlayer",
-          () {
+          () async {
         final instance = MediaPlayer.makeInstance();
         final videoReader = StubbedVideoReader(
           duration: Duration.zero,
           audioProperties: AudioProperties(),
         );
-        instance.initialiseWith(
+        await instance.initialiseWith(
           videoReader,
           opus16decoder: audioDecoder,
           pcm16audioPlayer: audioPlayer,
@@ -804,9 +803,9 @@ void main() {
         verify(audioDecoder.release()).called(1);
         verify(audioPlayer.release()).called(1);
       });
-      test("Should the MediPlayer in a defunct state", () {
+      test("Should the MediPlayer in a defunct state", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(
+        await instance.initialiseWith(
           StubbedVideoReader(
             duration: Duration.zero,
             audioProperties: AudioProperties(),
@@ -817,9 +816,9 @@ void main() {
 
         expect(instance.state, MediaPlayerState.defunct);
       });
-      test("Should set lastError to Void", () {
+      test("Should set lastError to Void", () async {
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(
+        await instance.initialiseWith(
           StubbedVideoReader(
             duration: Duration.zero,
             audioProperties: AudioProperties(),
@@ -830,11 +829,11 @@ void main() {
 
         expect(instance.lastError.isVoid, isTrue);
       });
-      test("Should notify listeners", () {
+      test("Should notify listeners", () async {
         bool didNotifyListener = false;
 
         final instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(
+        await instance.initialiseWith(
           StubbedVideoReader(
             duration: Duration.zero,
             audioProperties: AudioProperties(),
@@ -853,15 +852,15 @@ void main() {
       MediaPlayer instance;
       bool wasListenerNotified = false;
       setUp(() async {
-        instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(videoReader);
-        instance.setForwardBufferSize(Duration(seconds: 10));
-
         when(videoReader.initialise()).thenAnswer((_) async {});
         when(videoReader.getVideoDuration())
             .thenAnswer((_) async => Duration.zero);
         when(videoReader.getAudioProperties())
             .thenAnswer((_) async => AudioProperties());
+
+        instance = MediaPlayer.makeInstance();
+        await instance.initialiseWith(videoReader);
+        instance.setForwardBufferSize(Duration(seconds: 10));
 
         // Initiate full buffering
         when(videoReader.getMediaPagesInRange(any, any))
@@ -885,9 +884,8 @@ void main() {
         wasListenerNotified = false;
       });
 
-      test("Should put the MediaPlayer in a playingWithNoSoftBuffering state",
-          () {
-        expect(instance.state, MediaPlayerState.playingWithNoSoftBuffering);
+      test("Should turn off soft buffering", () {
+        expect(instance.isSoftBufferingEnabled, isFalse);
       });
       test("Should set lastError to the error thrown by the VideoReader", () {
         expect(instance.lastError, 'abc');
@@ -911,8 +909,7 @@ void main() {
           await Future.delayed(Duration(milliseconds: 1));
 
           expect(numberOfTimesSoftBufferingWasTriedAgain, 2);
-          expect(instance.state,
-              isNot(MediaPlayerState.playingWithNoSoftBuffering));
+          expect(instance.isSoftBufferingEnabled, isTrue);
         });
       });
     });
@@ -922,19 +919,19 @@ void main() {
       MediaPlayer instance;
       bool wasListenerNotified = false;
       setUp(() async {
-        instance = MediaPlayer.makeInstance();
-        instance.initialiseWith(
-          videoReader,
-          opus16decoder: audioDecoder,
-          pcm16audioPlayer: audioPlayer,
-        );
-        instance.setForwardBufferSize(Duration(seconds: 10));
-
         when(videoReader.initialise()).thenAnswer((_) async {});
         when(videoReader.getVideoDuration())
             .thenAnswer((_) async => Duration.zero);
         when(videoReader.getAudioProperties())
             .thenAnswer((_) async => AudioProperties());
+
+        instance = MediaPlayer.makeInstance();
+        await instance.initialiseWith(
+          videoReader,
+          opus16decoder: audioDecoder,
+          pcm16audioPlayer: audioPlayer,
+        );
+        instance.setForwardBufferSize(Duration(seconds: 10));
 
         // Initiate full buffering and throw when it happens.
         instance.addListener(() => wasListenerNotified = true);
@@ -972,14 +969,14 @@ void main() {
         () async {
       MediaPlayerState stateDuringFullBuffering;
 
-      final instance = MediaPlayer.makeInstance();
-      instance.initialiseWith(videoReader);
-
       when(videoReader.initialise()).thenAnswer((_) async {});
       when(videoReader.getVideoDuration())
           .thenAnswer((_) async => Duration.zero);
       when(videoReader.getAudioProperties())
           .thenAnswer((_) async => AudioProperties());
+
+      final instance = MediaPlayer.makeInstance();
+      await instance.initialiseWith(videoReader);
 
       when(videoReader.getMediaPagesInRange(any, any)).thenAnswer((_) async {
         stateDuringFullBuffering = instance.state;
@@ -995,13 +992,6 @@ void main() {
     test(
         "After full buffering the Opus16Decoder should be called with empty data but the PCM16AudioPlayer should never called with the results",
         () async {
-      final instance = MediaPlayer.makeInstance();
-      instance.initialiseWith(
-        videoReader,
-        opus16decoder: audioDecoder,
-        pcm16audioPlayer: audioPlayer,
-      );
-
       when(videoReader.initialise()).thenAnswer((_) async {});
       when(videoReader.getVideoDuration())
           .thenAnswer((_) async => Duration.zero);
@@ -1010,6 +1000,13 @@ void main() {
 
       when(videoReader.getMediaPagesInRange(any, any))
           .thenAnswer((_) async => [readableMediaPage10Seconds]);
+
+      final instance = MediaPlayer.makeInstance();
+      await instance.initialiseWith(
+        videoReader,
+        opus16decoder: audioDecoder,
+        pcm16audioPlayer: audioPlayer,
+      );
 
       // Initiate full buffering
       instance.getCurrentVectorFrame();

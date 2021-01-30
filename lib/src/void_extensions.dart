@@ -19,5 +19,5 @@ class Void {
 }
 
 extension VoidDynamic on dynamic {
-  bool get isVoid => this.isVoid;
+  bool get isVoid => this == null || (this is Void);
 }
