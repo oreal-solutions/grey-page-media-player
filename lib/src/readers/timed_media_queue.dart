@@ -19,6 +19,8 @@ class TimedMediaQueueItem<T> {
     return seekPosition >= startSeekPosition &&
         seekPosition < startSeekPosition + mediaLength;
   }
+
+  Duration get lengthOfMediaTillFar => startSeekPosition + mediaLength;
 }
 
 typedef T OrElse<T>();
@@ -28,7 +30,7 @@ typedef T OrElse<T>();
 /// This queue is meant to be used to store Media Pages of a video by wrapping
 /// them in [TimedMediaQueueItem].
 ///
-/// The generic [T] is to allow for thje storing of different types of Media
+/// The generic [T] is to allow for the storing of different types of Media
 /// Pages, e.g encoded and decoded Media Pages.
 ///
 /// A [TimedMediaQueueItem] has a startSeekPosition, i.e where it is in the
@@ -39,6 +41,9 @@ abstract class TimedMediaQueue<T> {
   ///
   /// [orElse] will be called this item is not found.
   T getMediaAt(Duration seekPosition, {@required OrElse<T> orElse});
+
+  /// Returns the [T] items in the given range.
+  List<T> getMediaInRange(Duration inclusiveStart, Duration exclusiveEnd);
 
   /// Removes the items in the queue whose combined lengths equals [length].
   void removeFrontWithLength(Duration length);
@@ -97,6 +102,24 @@ class _TimedMediaQueue<T> implements TimedMediaQueue<T> {
       return orElse();
     else
       return ret;
+  }
+
+  List<T> getMediaInRange(Duration inclusiveStart, Duration exclusiveEnd) {
+    // TODO: Optimise for many media items by implementing some specialised form of binary searching
+    final debug = queue.toList();
+    final ret = queue
+        .where((item) {
+          return (inclusiveStart >= item.startSeekPosition &&
+                  item.lengthOfMediaTillFar > inclusiveStart) ||
+              (item.startSeekPosition >= inclusiveStart &&
+                  item.lengthOfMediaTillFar < exclusiveEnd) ||
+              (exclusiveEnd >= item.startSeekPosition &&
+                  exclusiveEnd < item.lengthOfMediaTillFar);
+        })
+        .map((item) => item.media)
+        .toList();
+
+    return ret;
   }
 
   @override

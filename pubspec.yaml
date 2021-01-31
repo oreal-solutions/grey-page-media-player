@@ -12,6 +12,7 @@ dependencies:
   npxl_video:
     git:
       url: https://github.com/oreal-solutions/npxl-video.git
+      ref: 0bbaa1ed6ed9c51137d2ebee7420fe2aa936088b
 
 dev_dependencies:
   test: any

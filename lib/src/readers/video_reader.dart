@@ -14,7 +14,7 @@ abstract class VideoReader {
   ///
   /// The returned video duration is parsed from the videos' header.
   /// A [MediaPlayer] will need to increment the duration by itself
-  /// if it recreates lost and corrupted media pages.
+  /// if it recreates lost media pages.
   ///
   /// If the duration of the video cannot be determined, for example
   /// when the video is being live streamed, then [Duration.zero]
@@ -35,7 +35,7 @@ abstract class VideoReader {
   /// be returned. Likewise, if the last media page in this range overlaps
   /// [end], it will also be returned.
   Future<List<ReadableMediaPage>> getMediaPagesInRange(
-      Duration start, Duration end);
+      Duration inclusiveStart, Duration exclusiveEnd);
 
   /// Returns the audio properties of the video.
   Future<AudioProperties> getAudioProperties();
