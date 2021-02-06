@@ -133,6 +133,11 @@ class StreamVideoReader implements VideoReader {
         : Duration(milliseconds: mediaPage.header.pageDurationInMillis);
     _mediaPages.add(mediaPage, lastEndSeekPosition, mediaPageDuration);
   }
+
+  static StreamVideoReader fromFile(String filePath) {
+    final file = File(filePath);
+    return StreamVideoReader(_FileRandomAccessByteInputStream(file.openSync()));
+  }
 }
 
 class _StreamReadableMediaPage {
@@ -147,4 +152,23 @@ class _StreamReadableMediaPage {
 
   factory _StreamReadableMediaPage.voidInstance() => _StreamReadableMediaPage(
       null, InMemoryRandomAccessByteInputStream(Uint8List(0)), 0);
+}
+
+class _FileRandomAccessByteInputStream implements RandomAccessByteInputStream {
+  final RandomAccessFile file;
+  _FileRandomAccessByteInputStream(this.file);
+
+  @override
+  void close() {
+    file.closeSync();
+  }
+
+  @override
+  int get numberOfReadableBytes => file.lengthSync();
+
+  @override
+  Future<Uint8List> readBytes(int offset, int numberOfBytesToRead) {
+    file.setPositionSync(offset);
+    return file.read(numberOfBytesToRead);
+  }
 }
