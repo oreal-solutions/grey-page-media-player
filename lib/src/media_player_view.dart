@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:grey_page_media_player/src/media_player.dart';
-import 'package:grey_page_media_player/src/utls/rendering_utls.dart';
+import 'package:grey_page_media_player/src/utils/rendering_utils.dart';
 import 'package:grey_page_media_player/src/void_extensions.dart';
 import 'package:npxl_video/generated/npxl_video.pb.dart' as npxl;
 

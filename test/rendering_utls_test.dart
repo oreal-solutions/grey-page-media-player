@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'dart:ui';
 
-import 'package:grey_page_media_player/src/utls/rendering_utls.dart';
+import 'package:grey_page_media_player/src/utils/rendering_utils.dart';
 import 'package:test/test.dart';
 
 void main() {
