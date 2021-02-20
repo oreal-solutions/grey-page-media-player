@@ -8,9 +8,9 @@ A library for playing npxl videos in Flutter and Dart Web apps
   - [ ] Play video graphics
   - [ ] Play video graphics with audio
   - [ ] Render Video Material
-- [-] Flutter Android
+- [ ] Flutter Android (In Progress)
   - [x] Play video graphics
-  - [-] Play video graphics with audio
+  - [ ] Play video graphics with audio (In Progress)
   - [ ] Render Video Material
 - [ ] Flutter iOS
   - [ ] Play video graphics
