@@ -7,12 +7,14 @@ import 'package:npxl_video/generated/npxl_video.pb.dart' as npxl;
 
 typedef void OnPostRenderCallback();
 
-class MediaPlayerView extends StatefulWidget {
+class MediaPlayerView extends StatelessWidget {
   final MediaPlayer initialisedMediaPlayer;
+  final bool muteAudio;
   final Size size;
   final OnPostRenderCallback onPostRender;
   MediaPlayerView(
       {@required this.initialisedMediaPlayer,
+      this.muteAudio = false,
       this.size = Size.zero,
       this.onPostRender,
       Key key})
@@ -21,12 +23,37 @@ class MediaPlayerView extends StatefulWidget {
         super(key: key);
 
   @override
-  State<StatefulWidget> createState() {
-    return MediaPlayerViewState();
+  Widget build(BuildContext context) {
+    return FrameRenderer(
+      size: size,
+      onPostRender: onPostRender,
+      frameProvider: muteAudio
+          ? MutedVideoPlaybackFrameProvider(initialisedMediaPlayer)
+          : VideoPlaybackFrameProvider(initialisedMediaPlayer),
+    );
   }
 }
 
-class MediaPlayerViewState extends State<MediaPlayerView> {
+class FrameRenderer extends StatefulWidget {
+  final FrameProvider frameProvider;
+  final Size size;
+  final OnPostRenderCallback onPostRender;
+  FrameRenderer(
+      {@required this.frameProvider,
+      this.size = Size.zero,
+      this.onPostRender,
+      Key key})
+      : assert(frameProvider != null),
+        assert(size != null),
+        super(key: key);
+
+  @override
+  State<StatefulWidget> createState() {
+    return FrameRendererState();
+  }
+}
+
+class FrameRendererState extends State<FrameRenderer> {
   @override
   Widget build(BuildContext context) {
     SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -37,8 +64,7 @@ class MediaPlayerViewState extends State<MediaPlayerView> {
       child: CustomPaint(
         size: widget.size,
         painter: FlutterPainter(
-          frameProvider:
-              VideoPlaybackFrameProvider(widget.initialisedMediaPlayer),
+          frameProvider: widget.frameProvider,
         ),
       ),
     );
@@ -106,7 +132,9 @@ class FlutterPainter extends CustomPainter {
     canvas.drawPath(drawablePath, paint);
   }
 
-  void paintPointer(Canvas canvas, npxl.Pointer pointer) {}
+  void paintPointer(Canvas canvas, npxl.Pointer pointer) {
+    // TODO(Batandwa): Implement
+  }
 
   Color parseNpxlColor(npxl.Color color) {
     return Color(color.value);
@@ -129,5 +157,15 @@ class VideoPlaybackFrameProvider implements FrameProvider {
   @override
   npxl.RenderingInstructions getCurrentFrame() {
     return mediaPlayer.getCurrentVectorFrameAndPushAudio();
+  }
+}
+
+class MutedVideoPlaybackFrameProvider implements FrameProvider {
+  final MediaPlayer mediaPlayer;
+  MutedVideoPlaybackFrameProvider(this.mediaPlayer);
+
+  @override
+  npxl.RenderingInstructions getCurrentFrame() {
+    return mediaPlayer.getCurrentVectorFrame();
   }
 }
