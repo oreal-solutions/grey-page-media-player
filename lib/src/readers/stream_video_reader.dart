@@ -11,7 +11,7 @@ import 'package:npxl_video/generated/npxl_video.pb.dart';
 /// TODO(Batandwa): Clean
 class StreamVideoReader implements VideoReader {
   final RandomAccessByteInputStream source;
-  final TimedMediaQueue<_StreamReadableMediaPage> _mediaPages =
+  final TimedMediaQueue<StreamReadableMediaPage> mediaPages =
       TimedMediaQueue.makeEmptyQueue();
 
   VideoHeader _header;
@@ -29,7 +29,7 @@ class StreamVideoReader implements VideoReader {
       Duration inclusiveStart, Duration exclusiveEnd) async {
     final ret = <ReadableMediaPage>[];
     final mediaPagesInRange =
-        _mediaPages.getMediaInRange(inclusiveStart, exclusiveEnd);
+        mediaPages.getMediaInRange(inclusiveStart, exclusiveEnd);
     for (var mediaPage in mediaPagesInRange) {
       final audio = await mediaPage.compressedAudioStream
           .readBytes(0, mediaPage.sizeOfCompressedAudioInBytes);
@@ -74,8 +74,7 @@ class StreamVideoReader implements VideoReader {
   }
 
   Future<void> fetchAndRegisterMediaPageInRange(DataRange range) async {
-    _StreamReadableMediaPage mediaPage =
-        _StreamReadableMediaPage.voidInstance();
+    StreamReadableMediaPage mediaPage = StreamReadableMediaPage.voidInstance();
 
     try {
       final headerSize = getUnsignedShortFromUint8List(
@@ -87,7 +86,7 @@ class StreamVideoReader implements VideoReader {
       final compressedAudioStream = SkippingRandomAccessByteInputStream(
           range.start + 4 + headerSize, _mediaPagesInputStream);
 
-      mediaPage = _StreamReadableMediaPage(header, compressedAudioStream,
+      mediaPage = StreamReadableMediaPage(header, compressedAudioStream,
           range.end - range.start - 4 - headerSize);
     } on IOException catch (e) {
       // Failed to fetch Media Page
@@ -101,24 +100,24 @@ class StreamVideoReader implements VideoReader {
     Duration durationOfLastRegisteredMediaPage = Duration.zero;
     try {
       void fetchLastMediaPageAttributes() {
-        lastEndSeekPosition = _mediaPages.lastItem.startSeekPosition +
-            _mediaPages.lastItem.mediaLength;
-        durationOfLastRegisteredMediaPage = _mediaPages.lastItem.mediaLength;
+        lastEndSeekPosition = mediaPages.lastItem.startSeekPosition +
+            mediaPages.lastItem.mediaLength;
+        durationOfLastRegisteredMediaPage = mediaPages.lastItem.mediaLength;
       }
 
       fetchLastMediaPageAttributes();
 
       // Add void Media Pages for missing media pages
-      if (!mediaPage.isVoid && !_mediaPages.lastItem.media.isVoid) {
+      if (!mediaPage.isVoid && !mediaPages.lastItem.media.isVoid) {
         int numberOfMissingMediaPages = mediaPage.header.mediaPageNumber -
-            _mediaPages.lastItem.media.header.mediaPageNumber -
+            mediaPages.lastItem.media.header.mediaPageNumber -
             1;
 
         if (numberOfMissingMediaPages.isNegative)
           throw 'Bad Media Page Ordering. A Media Page coming after this one has already been registered';
 
         while (numberOfMissingMediaPages > 0) {
-          _mediaPages.add(_StreamReadableMediaPage.voidInstance(),
+          mediaPages.add(StreamReadableMediaPage.voidInstance(),
               lastEndSeekPosition, durationOfLastRegisteredMediaPage);
           numberOfMissingMediaPages--;
           fetchLastMediaPageAttributes();
@@ -131,7 +130,7 @@ class StreamVideoReader implements VideoReader {
     final mediaPageDuration = mediaPage.isVoid
         ? durationOfLastRegisteredMediaPage
         : Duration(milliseconds: mediaPage.header.pageDurationInMillis);
-    _mediaPages.add(mediaPage, lastEndSeekPosition, mediaPageDuration);
+    mediaPages.add(mediaPage, lastEndSeekPosition, mediaPageDuration);
   }
 
   static StreamVideoReader fromFile(String filePath) {
@@ -140,17 +139,17 @@ class StreamVideoReader implements VideoReader {
   }
 }
 
-class _StreamReadableMediaPage {
+class StreamReadableMediaPage {
   final MediaPageHeader header;
   final RandomAccessByteInputStream compressedAudioStream;
   final int sizeOfCompressedAudioInBytes;
 
-  _StreamReadableMediaPage(this.header, this.compressedAudioStream,
+  StreamReadableMediaPage(this.header, this.compressedAudioStream,
       this.sizeOfCompressedAudioInBytes);
 
   bool get isVoid => header == null;
 
-  factory _StreamReadableMediaPage.voidInstance() => _StreamReadableMediaPage(
+  factory StreamReadableMediaPage.voidInstance() => StreamReadableMediaPage(
       null, InMemoryRandomAccessByteInputStream(Uint8List(0)), 0);
 }
 
