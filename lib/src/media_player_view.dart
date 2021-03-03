@@ -12,11 +12,13 @@ class MediaPlayerView extends StatelessWidget {
   final bool muteAudio;
   final Size size;
   final OnPostRenderCallback onPostRender;
+  final BorderRadius borderRadius;
   MediaPlayerView(
       {@required this.initialisedMediaPlayer,
       this.muteAudio = false,
       this.size = Size.zero,
       this.onPostRender,
+      this.borderRadius = BorderRadius.zero,
       Key key})
       : assert(initialisedMediaPlayer != null),
         assert(size != null),
@@ -25,6 +27,7 @@ class MediaPlayerView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FrameRenderer(
+      borderRadius: borderRadius,
       size: size,
       onPostRender: onPostRender,
       frameProvider: muteAudio
@@ -38,13 +41,16 @@ class FrameRenderer extends StatefulWidget {
   final FrameProvider frameProvider;
   final Size size;
   final OnPostRenderCallback onPostRender;
+  final BorderRadius borderRadius;
   FrameRenderer(
       {@required this.frameProvider,
       this.size = Size.zero,
       this.onPostRender,
+      this.borderRadius = BorderRadius.zero,
       Key key})
       : assert(frameProvider != null),
         assert(size != null),
+        assert(borderRadius != null),
         super(key: key);
 
   @override
@@ -60,7 +66,8 @@ class FrameRendererState extends State<FrameRenderer> {
       setState(widget.onPostRender ?? () {});
     });
 
-    return ClipRect(
+    return ClipRRect(
+      borderRadius: widget.borderRadius,
       child: CustomPaint(
         size: widget.size,
         painter: FlutterPainter(
