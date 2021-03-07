@@ -166,8 +166,8 @@ class _FileRandomAccessByteInputStream implements RandomAccessByteInputStream {
   int get numberOfReadableBytes => file.lengthSync();
 
   @override
-  Future<Uint8List> readBytes(int offset, int numberOfBytesToRead) {
+  Future<Uint8List> readBytes(int offset, int numberOfBytesToRead) async {
     file.setPositionSync(offset);
-    return file.read(numberOfBytesToRead);
+    return file.readSync(numberOfBytesToRead);
   }
 }
