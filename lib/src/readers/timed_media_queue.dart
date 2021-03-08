@@ -134,7 +134,7 @@ class _TimedMediaQueue<T> implements TimedMediaQueue<T> {
     Duration combinedBackItemsDuration = Duration.zero;
 
     for (var item in queue.toList().reversed) {
-      combinedBackItemsDuration = item.mediaLength;
+      combinedBackItemsDuration += item.mediaLength;
       if (combinedBackItemsDuration <= length)
         numberofBackItemsToRemove++;
       else
@@ -150,7 +150,7 @@ class _TimedMediaQueue<T> implements TimedMediaQueue<T> {
     Duration combinedFrontItemsDuration = Duration.zero;
 
     for (var item in queue) {
-      combinedFrontItemsDuration = item.mediaLength;
+      combinedFrontItemsDuration += item.mediaLength;
       if (combinedFrontItemsDuration <= length)
         numberOfFrontItemsToRemove++;
       else
