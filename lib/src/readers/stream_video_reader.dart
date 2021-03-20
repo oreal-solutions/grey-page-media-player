@@ -135,7 +135,7 @@ class StreamVideoReader implements VideoReader {
 
   static StreamVideoReader fromFile(String filePath) {
     final file = File(filePath);
-    return StreamVideoReader(_FileRandomAccessByteInputStream(file.openSync()));
+    return StreamVideoReader(FileRandomAccessByteInputStream(file.openSync()));
   }
 }
 
@@ -153,9 +153,9 @@ class StreamReadableMediaPage {
       null, InMemoryRandomAccessByteInputStream(Uint8List(0)), 0);
 }
 
-class _FileRandomAccessByteInputStream implements RandomAccessByteInputStream {
+class FileRandomAccessByteInputStream implements RandomAccessByteInputStream {
   final RandomAccessFile file;
-  _FileRandomAccessByteInputStream(this.file);
+  FileRandomAccessByteInputStream(this.file);
 
   @override
   void close() {
