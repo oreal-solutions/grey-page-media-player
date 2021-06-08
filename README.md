@@ -1,6 +1,6 @@
 # grey-page-media-player
 
-A library for playing npxl videos in Flutter and Dart Web apps
+A library for playing [npxl videos](https://github.com/oreal-solutions/npxl-video) in Flutter and Dart Web apps
 
 ## Targets
 
