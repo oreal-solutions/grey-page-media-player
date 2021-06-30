@@ -28,7 +28,6 @@ dependencies:
   npxl_video:
     git:
       url: https://github.com/oreal-solutions/npxl-video.git
-      ref: b72528b0bf3214245e72d867f1227032c7c3afec
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

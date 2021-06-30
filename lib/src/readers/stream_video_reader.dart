@@ -61,14 +61,14 @@ class StreamVideoReader implements VideoReader {
   Future<void> loadVideoHeader() async {
     if (source.numberOfReadableBytes < 5) throw ArgumentError('Bad video');
 
-    final sizeOfVideoHeaderBinaryData = await source.readBytes(2, 2);
+    final sizeOfVideoHeaderBinaryData = await source.readBytes(2, 4);
     final sizeOfVideoHeader =
-        getUnsignedShortFromUint8List(sizeOfVideoHeaderBinaryData);
+        getUnsigned32BitIntFromUint8List(sizeOfVideoHeaderBinaryData);
 
-    final videoHeaderBinaryData = await source.readBytes(4, sizeOfVideoHeader);
+    final videoHeaderBinaryData = await source.readBytes(6, sizeOfVideoHeader);
     this._header = VideoHeader.fromBuffer(videoHeaderBinaryData);
 
-    int offsetToFirstByteOfFirstMediaPage = 4 + sizeOfVideoHeader;
+    int offsetToFirstByteOfFirstMediaPage = 6 + sizeOfVideoHeader;
     _mediaPagesInputStream = SkippingRandomAccessByteInputStream(
         offsetToFirstByteOfFirstMediaPage, source);
   }
