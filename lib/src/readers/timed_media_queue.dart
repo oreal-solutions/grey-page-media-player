@@ -3,24 +3,23 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 
 class TimedMediaQueueItem<T> {
-  /// The seek position in the video this media item is in.
+  /// The seek position in the video this media item starts at.
   final Duration startSeekPosition;
 
-  /// The duration of this media item.
-  final Duration mediaLength;
+  /// The seek position in the video this media item ends at.
+  final Duration endSeekPosition;
 
+  final Duration mediaLength;
   final T media;
 
-  TimedMediaQueueItem(this.media, this.startSeekPosition, this.mediaLength);
+  TimedMediaQueueItem(this.media, this.startSeekPosition, this.mediaLength)
+      : endSeekPosition = startSeekPosition + mediaLength;
 
   /// Returns true if [seekPosition] is in the range of this
   /// media item.
   bool isInSeekPosition(Duration seekPosition) {
-    return seekPosition >= startSeekPosition &&
-        seekPosition < startSeekPosition + mediaLength;
+    return seekPosition >= startSeekPosition && seekPosition < endSeekPosition;
   }
-
-  Duration get lengthOfMediaTillFar => startSeekPosition + mediaLength;
 }
 
 typedef T OrElse<T>();
@@ -45,10 +44,10 @@ abstract class TimedMediaQueue<T> {
   /// Returns the [T] items in the given range.
   List<T> getMediaInRange(Duration inclusiveStart, Duration exclusiveEnd);
 
-  /// Removes the items in the queue whose combined lengths equals [length].
+  /// Removes the first items in the queue whose combined lengths equals [length].
   void removeFrontWithLength(Duration length);
 
-  /// Removes the last items in the queue whose combined length equals [lenght].
+  /// Removes the last items in the queue whose combined length equals [length].
   void removeBackWithLength(Duration length);
 
   /// Clears the collection.
@@ -93,15 +92,43 @@ class _TimedMediaQueue<T> implements TimedMediaQueue<T> {
 
   @override
   T getMediaAt(Duration seekPosition, {OrElse<T> orElse}) {
-    final ret = queue
-        .firstWhere((item) => item.isInSeekPosition(seekPosition),
-            orElse: () => null)
-        ?.media;
+    return descendToMediaItemAt(
+      seekPosition,
+      mediaItems: queue.toList(),
+      orElse: orElse,
+    );
+  }
 
-    if (ret == null)
+  T descendToMediaItemAt(
+    Duration seekPosition, {
+    @required List<TimedMediaQueueItem<T>> mediaItems,
+    @required OrElse<T> orElse,
+  }) {
+    if (mediaItems.isEmpty) {
       return orElse();
-    else
-      return ret;
+    } else if (mediaItems.length == 1) {
+      final mediaItem = mediaItems.first;
+      return mediaItem.isInSeekPosition(seekPosition)
+          ? mediaItem.media
+          : orElse();
+    }
+
+    final midIndex = ((mediaItems.length - 1) / 2).floor();
+    final midItem = mediaItems.elementAt(midIndex);
+
+    if (seekPosition <= midItem.endSeekPosition) {
+      return descendToMediaItemAt(
+        seekPosition,
+        mediaItems: mediaItems.sublist(0, midIndex + 1),
+        orElse: orElse,
+      );
+    } else {
+      return descendToMediaItemAt(
+        seekPosition,
+        mediaItems: mediaItems.sublist(midIndex + 1),
+        orElse: orElse,
+      );
+    }
   }
 
   List<T> getMediaInRange(Duration inclusiveStart, Duration exclusiveEnd) {
@@ -110,11 +137,11 @@ class _TimedMediaQueue<T> implements TimedMediaQueue<T> {
     final ret = queue
         .where((item) {
           return (inclusiveStart >= item.startSeekPosition &&
-                  item.lengthOfMediaTillFar > inclusiveStart) ||
+                  item.endSeekPosition > inclusiveStart) ||
               (item.startSeekPosition >= inclusiveStart &&
-                  item.lengthOfMediaTillFar < exclusiveEnd) ||
+                  item.endSeekPosition < exclusiveEnd) ||
               (exclusiveEnd >= item.startSeekPosition &&
-                  exclusiveEnd < item.lengthOfMediaTillFar);
+                  exclusiveEnd < item.endSeekPosition);
         })
         .map((item) => item.media)
         .toList();
