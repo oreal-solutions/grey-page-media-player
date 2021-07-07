@@ -94,7 +94,8 @@ class _TimedMediaQueue<T> implements TimedMediaQueue<T> {
   T getMediaAt(Duration seekPosition, {OrElse<T> orElse}) {
     return descendToMediaItemAt(
       seekPosition,
-      mediaItems: queue.toList(),
+      queueStartIndex: 0,
+      queueExclusiveEndIndex: queue.length,
       orElse: orElse,
     );
   }
@@ -168,31 +169,37 @@ class _TimedMediaQueue<T> implements TimedMediaQueue<T> {
 
   T descendToMediaItemAt(
     Duration seekPosition, {
-    @required List<TimedMediaQueueItem<T>> mediaItems,
+    @required int queueStartIndex,
+    @required int queueExclusiveEndIndex,
     @required OrElse<T> orElse,
   }) {
-    if (mediaItems.isEmpty) {
+    if (queueStartIndex == queueExclusiveEndIndex) {
       return orElse();
-    } else if (mediaItems.length == 1) {
-      final mediaItem = mediaItems.first;
+    } else if (queueExclusiveEndIndex - queueStartIndex == 1) {
+      final mediaItem = queue.elementAt(queueStartIndex);
       return mediaItem.isInSeekPosition(seekPosition)
           ? mediaItem.media
           : orElse();
     }
 
-    final midIndex = ((mediaItems.length - 1) / 2).floor();
-    final midItem = mediaItems.elementAt(midIndex);
+    final midIndex = queueStartIndex +
+        ((queueExclusiveEndIndex - queueStartIndex) / 2).floor();
+    final midItem = queue.elementAt(midIndex);
 
-    if (seekPosition <= midItem.endSeekPosition) {
+    if (seekPosition < midItem.startSeekPosition) {
       return descendToMediaItemAt(
         seekPosition,
-        mediaItems: mediaItems.sublist(0, midIndex + 1),
+        queueStartIndex: queueStartIndex,
+        queueExclusiveEndIndex: midIndex,
         orElse: orElse,
       );
+    } else if (midItem.isInSeekPosition(seekPosition)) {
+      return midItem.media;
     } else {
       return descendToMediaItemAt(
         seekPosition,
-        mediaItems: mediaItems.sublist(midIndex + 1),
+        queueStartIndex: midIndex,
+        queueExclusiveEndIndex: queueExclusiveEndIndex,
         orElse: orElse,
       );
     }
