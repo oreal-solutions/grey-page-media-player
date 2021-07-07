@@ -99,54 +99,33 @@ class _TimedMediaQueue<T> implements TimedMediaQueue<T> {
     );
   }
 
-  T descendToMediaItemAt(
-    Duration seekPosition, {
-    @required List<TimedMediaQueueItem<T>> mediaItems,
-    @required OrElse<T> orElse,
-  }) {
-    if (mediaItems.isEmpty) {
-      return orElse();
-    } else if (mediaItems.length == 1) {
-      final mediaItem = mediaItems.first;
-      return mediaItem.isInSeekPosition(seekPosition)
-          ? mediaItem.media
-          : orElse();
-    }
-
-    final midIndex = ((mediaItems.length - 1) / 2).floor();
-    final midItem = mediaItems.elementAt(midIndex);
-
-    if (seekPosition <= midItem.endSeekPosition) {
-      return descendToMediaItemAt(
-        seekPosition,
-        mediaItems: mediaItems.sublist(0, midIndex + 1),
-        orElse: orElse,
-      );
-    } else {
-      return descendToMediaItemAt(
-        seekPosition,
-        mediaItems: mediaItems.sublist(midIndex + 1),
-        orElse: orElse,
-      );
-    }
-  }
-
+  @override
   List<T> getMediaInRange(Duration inclusiveStart, Duration exclusiveEnd) {
-    // TODO: Optimise for many media items by implementing some specialised form of binary searching
-    final debug = queue.toList();
-    final ret = queue
-        .where((item) {
-          return (inclusiveStart >= item.startSeekPosition &&
-                  item.endSeekPosition > inclusiveStart) ||
-              (item.startSeekPosition >= inclusiveStart &&
-                  item.endSeekPosition < exclusiveEnd) ||
-              (exclusiveEnd >= item.startSeekPosition &&
-                  exclusiveEnd < item.endSeekPosition);
-        })
-        .map((item) => item.media)
-        .toList();
+    List<TimedMediaQueueItem<T>> ret;
 
-    return ret;
+    int lowerIndex = -1;
+    int higherIndex = -1;
+
+    try {
+      lowerIndex =
+          getLowerIndexForDurationRange(inclusiveStart, 0, queue.length);
+    } catch (_) {}
+
+    try {
+      higherIndex =
+          getHigherIndexForDurationInRange(exclusiveEnd, 0, queue.length);
+    } catch (_) {}
+
+    if (lowerIndex == -1 && higherIndex != -1)
+      ret = queue.toList().sublist(0, higherIndex);
+    else if (lowerIndex == -1 && higherIndex == -1)
+      ret = [];
+    else if (lowerIndex != -1 && higherIndex == -1)
+      ret = queue.toList().sublist(lowerIndex);
+    else
+      ret = queue.toList().sublist(lowerIndex, higherIndex);
+
+    return ret.map((e) => e.media).toList();
   }
 
   @override
@@ -186,4 +165,108 @@ class _TimedMediaQueue<T> implements TimedMediaQueue<T> {
 
     for (int i = 0; i < numberOfFrontItemsToRemove; i++) queue.removeFirst();
   }
+
+  T descendToMediaItemAt(
+    Duration seekPosition, {
+    @required List<TimedMediaQueueItem<T>> mediaItems,
+    @required OrElse<T> orElse,
+  }) {
+    if (mediaItems.isEmpty) {
+      return orElse();
+    } else if (mediaItems.length == 1) {
+      final mediaItem = mediaItems.first;
+      return mediaItem.isInSeekPosition(seekPosition)
+          ? mediaItem.media
+          : orElse();
+    }
+
+    final midIndex = ((mediaItems.length - 1) / 2).floor();
+    final midItem = mediaItems.elementAt(midIndex);
+
+    if (seekPosition <= midItem.endSeekPosition) {
+      return descendToMediaItemAt(
+        seekPosition,
+        mediaItems: mediaItems.sublist(0, midIndex + 1),
+        orElse: orElse,
+      );
+    } else {
+      return descendToMediaItemAt(
+        seekPosition,
+        mediaItems: mediaItems.sublist(midIndex + 1),
+        orElse: orElse,
+      );
+    }
+  }
+
+  int getLowerIndexForDurationRange(Duration inclusiveStartDuration,
+      int queueStartIndex, int queueExclusiveEndIndex) {
+    if (queueStartIndex == queueExclusiveEndIndex) {
+      throw _CannotFindLowerIndexError();
+    } else if (queueExclusiveEndIndex - queueStartIndex == 1) {
+      if (queue
+          .elementAt(queueStartIndex)
+          .isInSeekPosition(inclusiveStartDuration)) {
+        return queueStartIndex;
+      }
+
+      throw _CannotFindLowerIndexError();
+    }
+
+    final midIndex = queueStartIndex +
+        ((queueExclusiveEndIndex - queueStartIndex) / 2).floor();
+    final midItem = queue.elementAt(midIndex);
+    if (inclusiveStartDuration < midItem.startSeekPosition) {
+      return getLowerIndexForDurationRange(
+          inclusiveStartDuration, 0, midIndex + 1);
+    } else if (midItem.isInSeekPosition(inclusiveStartDuration)) {
+      return midIndex;
+    } else {
+      // else if midItem.endSeekPosition >= inclusiveStartDuration
+      return getLowerIndexForDurationRange(
+          inclusiveStartDuration, midIndex + 1, queueExclusiveEndIndex);
+    }
+  }
+
+  int getHigherIndexForDurationInRange(Duration exclusiveEndDuration,
+      int queueStartIndex, int queueExclusiveEndIndex) {
+    if (queueStartIndex == queueExclusiveEndIndex) {
+      throw _CannotFindHigherIndexError();
+    } else if (queueExclusiveEndIndex - queueStartIndex == 1) {
+      if (queue
+          .elementAt(queueStartIndex)
+          .isInSeekPosition(exclusiveEndDuration)) {
+        return queueExclusiveEndIndex;
+      }
+
+      throw _CannotFindHigherIndexError();
+    }
+
+    final midIndex = queueStartIndex +
+        ((queueExclusiveEndIndex - queueStartIndex) / 2).floor();
+    final midItem = queue.elementAt(midIndex);
+
+    if (exclusiveEndDuration > midItem.endSeekPosition) {
+      return getHigherIndexForDurationInRange(
+          exclusiveEndDuration, midIndex + 1, queueExclusiveEndIndex);
+    } else if (exclusiveEndDuration == midItem.endSeekPosition ||
+        midItem.isInSeekPosition(exclusiveEndDuration)) {
+      return midIndex + 1;
+    } else if (exclusiveEndDuration == midItem.startSeekPosition) {
+      return midIndex;
+    } else {
+      // else if exclusiveEndDuration < midItem.startSeekPosition
+      return getHigherIndexForDurationInRange(
+          exclusiveEndDuration, queueStartIndex, midIndex);
+    }
+  }
+}
+
+class _CannotFindLowerIndexError extends Error {
+  @override
+  String toString() => "Cannot find lower index.";
+}
+
+class _CannotFindHigherIndexError extends Error {
+  @override
+  String toString() => "Cannot find higher index.";
 }

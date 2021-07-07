@@ -82,7 +82,7 @@ void main() {
         final mediaPages = await instance.getMediaPagesInRange(
             Duration(seconds: 2), Duration(seconds: 5, milliseconds: 500));
 
-        expect(mediaPages.length, 2);
+        expect(mediaPages, hasLength(2));
 
         expect(mediaPages.first.header.mediaPageNumber, 2);
         expect(mediaPages.first.header.pageDurationInMillis,
@@ -103,7 +103,7 @@ void main() {
         final mediaPages = await instance.getMediaPagesInRange(
             Duration(seconds: 1), Duration(seconds: 5));
 
-        expect(mediaPages.length, 2);
+        expect(mediaPages, hasLength(2));
 
         expect(mediaPages.first.header.mediaPageNumber, 1);
         expect(mediaPages.first.header.pageDurationInMillis,
@@ -127,7 +127,7 @@ void main() {
         final mediaPages = await instance.getMediaPagesInRange(
             Duration(seconds: 6), Duration(seconds: 6, milliseconds: 500));
 
-        expect(mediaPages.length, 1);
+        expect(mediaPages, hasLength(1));
         expect(mediaPages.first.isVoid, isTrue);
       });
       test("Should replace corrupted MediaPages with void MediaPages",
@@ -135,7 +135,7 @@ void main() {
         final mediaPages = await instance.getMediaPagesInRange(
             Duration(seconds: 14), Duration(seconds: 18));
 
-        expect(mediaPages.length, 1);
+        expect(mediaPages, hasLength(1));
         expect(mediaPages.first.isVoid, isTrue);
       });
     });
