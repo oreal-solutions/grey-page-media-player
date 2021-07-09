@@ -135,7 +135,6 @@ class FlutterPainter extends CustomPainter {
       // TODO(Batandwa): Apply the pressure component.
       drawablePath.lineTo(pathPoint.coordinates.dx, pathPoint.coordinates.dy);
     });
-    drawablePath.close();
     canvas.drawPath(drawablePath, paint);
   }
 
