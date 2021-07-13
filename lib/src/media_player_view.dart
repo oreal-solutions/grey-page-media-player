@@ -76,16 +76,28 @@ class FrameRendererState extends State<FrameRenderer> {
       ),
     );
   }
+
+  @override
+  void dispose() {
+    // Clear memory by setting it to a void frame
+    FlutterPainter.previousFrame = npxl.RenderingInstructions();
+    super.dispose();
+  }
 }
 
 class FlutterPainter extends CustomPainter {
   final FrameProvider frameProvider;
   FlutterPainter({@required this.frameProvider});
 
+  static npxl.RenderingInstructions previousFrame;
+
   @override
   void paint(Canvas canvas, Size canvasSize) {
-    final frame = frameProvider.getCurrentFrame();
+    var frame = frameProvider.getCurrentFrame();
+    if (frame.isVoid) frame = previousFrame ?? frame;
     if (frame.isVoid) return;
+
+    previousFrame = frame;
 
     paintBackgroundColor(canvas, canvasSize, frame.backgroundColor);
 
@@ -147,7 +159,7 @@ class FlutterPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+  bool shouldRepaint(FlutterPainter oldDelegate) {
     return true;
   }
 }
