@@ -101,7 +101,8 @@ class FlutterPainter extends CustomPainter {
 
     paintBackgroundColor(canvas, canvasSize, frame.backgroundColor);
 
-    final sourceDimensions = Size(frame.viewport.width, frame.viewport.height);
+    final sourceDimensions =
+        Size(frame.viewport.width.toDouble(), frame.viewport.height.toDouble());
     final renderableCanvasSize =
         computeRenderableSurface(sourceDimensions, canvasSize);
 

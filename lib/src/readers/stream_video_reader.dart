@@ -77,17 +77,17 @@ class StreamVideoReader implements VideoReader {
     StreamReadableMediaPage mediaPage = StreamReadableMediaPage.voidInstance();
 
     try {
-      final headerSize = getUnsignedShortFromUint8List(
-          await _mediaPagesInputStream.readBytes(range.start + 2, 2));
+      final headerSize = getUnsigned32BitIntFromUint8List(
+          await _mediaPagesInputStream.readBytes(range.start + 2, 4));
       final headerBinaryData =
-          await _mediaPagesInputStream.readBytes(range.start + 4, headerSize);
+          await _mediaPagesInputStream.readBytes(range.start + 6, headerSize);
 
       final header = MediaPageHeader.fromBuffer(headerBinaryData);
       final compressedAudioStream = SkippingRandomAccessByteInputStream(
-          range.start + 4 + headerSize, _mediaPagesInputStream);
+          range.start + 6 + headerSize, _mediaPagesInputStream);
 
       mediaPage = StreamReadableMediaPage(header, compressedAudioStream,
-          range.end - range.start - 4 - headerSize);
+          range.end - range.start - 6 - headerSize);
     } on IOException catch (e) {
       // Failed to fetch Media Page
       throw e;
