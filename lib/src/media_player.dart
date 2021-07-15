@@ -464,8 +464,7 @@ class _MediaPageBuffersController {
   Duration get endSeekPositionOfTheLastMediaPageInQueue {
     if (_mediaQueue.isEmpty) return Duration.zero;
 
-    return _mediaQueue.lastItem.startSeekPosition +
-        _mediaQueue.lastItem.mediaLength;
+    return _mediaQueue.lastItem.endSeekPosition;
   }
 
   _MediaPageReadyToPlay getLastMediaPage() {

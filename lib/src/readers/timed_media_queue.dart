@@ -224,11 +224,14 @@ class _TimedMediaQueue<T> implements TimedMediaQueue<T> {
     final midItem = queue.elementAt(midIndex);
     if (inclusiveStartDuration < midItem.startSeekPosition) {
       return getLowerIndexForDurationRange(
-          inclusiveStartDuration, 0, midIndex + 1);
+          inclusiveStartDuration, queueStartIndex, midIndex);
     } else if (midItem.isInSeekPosition(inclusiveStartDuration)) {
       return midIndex;
     } else {
       // else if midItem.endSeekPosition >= inclusiveStartDuration
+
+      // Note that we add one because we already know that the mid item
+      // is not a candidate.
       return getLowerIndexForDurationRange(
           inclusiveStartDuration, midIndex + 1, queueExclusiveEndIndex);
     }
