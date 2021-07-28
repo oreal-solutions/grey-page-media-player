@@ -34,15 +34,7 @@ class StreamVideoReader implements VideoReader {
 
     for (var mediaPageHeader in mediaPageHeadersInRange) {
       try {
-        final start = mediaPageHeader.mediaPageDataRange.start;
-        final end = mediaPageHeader.mediaPageDataRange.end;
-        final mediaPageBinaryData =
-            await _mediaPagesInputStream.readBytes(start, end - start);
-
-        ret.add(ReadableMediaPageWithHeader.from(
-          header: mediaPageHeader,
-          readableMediaPage: readMediaPage(mediaPageBinaryData),
-        ));
+        ret.add(await readMediaPageWithHeader(mediaPageHeader));
       } on IOException {
         rethrow;
       } catch (e) {
@@ -70,6 +62,19 @@ class StreamVideoReader implements VideoReader {
   @override
   void release() {
     source.close();
+  }
+
+  Future<ReadableMediaPageWithHeader> readMediaPageWithHeader(
+      MediaPageHeader mediaPageHeader) async {
+    final start = mediaPageHeader.mediaPageDataRange.start;
+    final end = mediaPageHeader.mediaPageDataRange.end;
+    final mediaPageBinaryData =
+        await _mediaPagesInputStream.readBytes(start, end - start);
+
+    return ReadableMediaPageWithHeader.from(
+      header: mediaPageHeader,
+      readableMediaPage: readMediaPage(mediaPageBinaryData),
+    );
   }
 
   Future<void> loadVideoHeader() async {
