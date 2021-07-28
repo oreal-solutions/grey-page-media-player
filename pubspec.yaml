@@ -10,8 +10,9 @@ dependencies:
     sdk: flutter
 
   npxl_video:
-    git:
-      url: https://github.com/oreal-solutions/npxl-video.git
+    path: /Users/batandwamgutsi/Desktop/npxl-video
+    # git:
+    #   url: https://github.com/oreal-solutions/npxl-video.git
 
 dev_dependencies:
   test: any

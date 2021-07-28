@@ -12,7 +12,7 @@ import 'package:npxl_video/npxl_video.dart';
 /// A video playback coordinater from a [VideoReader].
 ///
 /// The [MediaPlayer] keeps track of and advances the [seekPosition] as the
-/// video is being played. Renders can request the frame to be rendered
+/// video is being played. Renderers can request the frame to be rendered
 /// for the current seek position with [getCurrentVectorFrame] or
 /// [getCurrentVectorFrameAndPushAudio].
 ///
@@ -22,16 +22,16 @@ import 'package:npxl_video/npxl_video.dart';
 /// to ensure the passed [PCM16AudioPlayer] always has audio. It is best
 /// to request vector frames at the devices display refresh rate.
 ///
-/// Void [ReadableMediaPage]s from the given [VideoReader] will be
+/// Void [ReadableMediaPageWithHeader]s from the given [VideoReader] will be
 /// recreated with Media Page concealment. This is done by calling
 /// the given [Opus16Decoder] with no data and then combining the returned
-/// pcm audio data with the vector frame of the previous [ReadableMediaPage]
-/// to create a new Media Page. If there happens to be no previous
-/// Media Page to copy a vector frame from or the given [Opus16Decoder]
-/// cannot reproduce the audio data no Media Page concealment will be done,
-/// and the [ReadableMediaPage] will just be discarded.
+/// pcm audio data with the vector frame of the previous
+/// [ReadableMediaPageWithHeader] to create a new Media Page. If there happens
+/// to be no previous Media Page to copy a vector frame from or the given
+/// [Opus16Decoder] cannot reproduce the audio data, no Media Page concealment
+/// will be done, and the [ReadableMediaPageWithHeader] will just be discarded.
 ///
-/// Seeking the MediaPlayer can be categorised into two groups, a hard seek
+/// Seeking the MediaPlayer can be categorised into two types, a hard seek
 /// and a soft seek. A hard seek is any seek that moves [seekPosition] to a
 /// position the [MediaPlayer] does not have buffered Media Pages for. The
 /// [MediaPlayer] resolves hard seeks by running the full buffer coroutine
@@ -42,7 +42,7 @@ import 'package:npxl_video/npxl_video.dart';
 /// or [getCurrentVectorFrameAndPushAudio] in the buffering state will return a
 /// `void` vector frame and no audio will be pushed. Before playing the newly
 /// fetched media pages after a hard seek, the [MediaPlayer] will call the
-/// given [Opus16Decoder] with a empty data and discard the results.
+/// given [Opus16Decoder] with empty data and discard the results.
 /// This is done with the assumption that it it will prepare the decoder to
 /// start decoding audio from the current [seekPosition] without having to
 /// worry about the skipped frames.
@@ -50,7 +50,7 @@ import 'package:npxl_video/npxl_video.dart';
 /// A soft seek is any seek that is not a hard seek. That is any
 /// seek that sets [seekPosition] to a position the [MediaPlayer] does have
 /// buffered Media Pages for. Soft seeks trigger soft buffering when the data
-/// in the forward buffer is filled with less than 70% of its maximum size.
+/// in the forward buffer is filled to less than 70% of its maximum size.
 /// Soft buffering is the same as the last part of full buffering which is
 /// basically filling the forward buffer with more media pages to its maximum
 /// size.
@@ -194,8 +194,8 @@ enum MediaPlayerState {
 class _MediaPlayer extends MediaPlayer {
   Stopwatch seekPositionCounter = Stopwatch();
   _MediaPageBuffersController buffersController = _MediaPageBuffersController();
-  ReadableMediaPage lastQueuedNonVoidMediaPage =
-      ReadableMediaPage(null, Uint8List(0));
+  ReadableMediaPageWithHeader lastQueuedNonVoidMediaPage =
+      ReadableMediaPageWithHeader.voidInstance();
 
   _MediaPageReadyToPlay mediaPageWhoseAudioWasLastPushed =
       _MediaPageReadyToPlay.voidInstance();
@@ -382,8 +382,8 @@ class _MediaPlayer extends MediaPlayer {
               Uint8List(0);
         }
 
-        decodedMediaPage =
-            _MediaPageReadyToPlay(mediaPage.header, decodedAudio);
+        decodedMediaPage = _MediaPageReadyToPlay(
+            mediaPage.header, mediaPage.vectorFrame, decodedAudio);
       }
 
       buffersController.queueMediaPage(
@@ -398,8 +398,8 @@ class _MediaPlayer extends MediaPlayer {
       return _MediaPageReadyToPlay.voidInstance();
 
     final recreatedAudio = audioDecoder?.decode(Uint8List(0)) ?? Uint8List(0);
-    return _MediaPageReadyToPlay(
-        lastQueuedNonVoidMediaPage.header, recreatedAudio);
+    return _MediaPageReadyToPlay(lastQueuedNonVoidMediaPage.header,
+        lastQueuedNonVoidMediaPage.vectorFrame, recreatedAudio);
   }
 }
 
@@ -516,16 +516,15 @@ class _MediaPageBuffersController {
 
 class _MediaPageReadyToPlay {
   final MediaPageHeader header;
+  final RenderingInstructions vectorFrame;
   final Uint8List decodedAudio;
 
-  _MediaPageReadyToPlay(this.header, this.decodedAudio);
+  _MediaPageReadyToPlay(this.header, this.vectorFrame, this.decodedAudio);
 
   bool get isVoid => this.vectorFrame == null;
-
-  RenderingInstructions get vectorFrame => header?.vectorFrame;
 
   bool headerEquals(MediaPageHeader otherHeader) => this.header == otherHeader;
 
   factory _MediaPageReadyToPlay.voidInstance() =>
-      _MediaPageReadyToPlay(null, Uint8List(0));
+      _MediaPageReadyToPlay(null, null, Uint8List(0));
 }

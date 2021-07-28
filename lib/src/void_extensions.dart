@@ -1,3 +1,4 @@
+import 'package:grey_page_media_player/src/readers/video_reader.dart';
 import 'package:npxl_video/generated/npxl_video.pb.dart';
 import 'package:npxl_video/npxl_video.dart';
 
@@ -10,8 +11,9 @@ extension VoidRenderingInstructions on RenderingInstructions {
 }
 
 /// A void [ReadableMediaPage] has no header.
-extension VoidReadableMediaPage on ReadableMediaPage {
+extension VoidReadableMediaPageWithHeader on ReadableMediaPageWithHeader {
   bool get isVoid => this.header == null;
+  bool get isNotVoid => !isVoid;
 }
 
 class Void {
@@ -20,4 +22,5 @@ class Void {
 
 extension VoidDynamic on dynamic {
   bool get isVoid => this == null || (this is Void);
+  bool get isNotVoid => !isVoid;
 }

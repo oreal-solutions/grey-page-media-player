@@ -20,6 +20,12 @@ version: 1.0.0+1
 environment:
   sdk: ">=2.7.0 <3.0.0"
 
+dependency_overrides:
+  npxl_video:
+    git:
+      url: https://github.com/oreal-solutions/npxl-video.git
+      ref: f9d593390baedb71ceafbabe9900ff16bf04b50e
+
 dependencies:
   flutter:
     sdk: flutter

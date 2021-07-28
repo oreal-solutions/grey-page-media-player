@@ -5,13 +5,14 @@ import 'package:grey_page_media_player/src/readers/timed_media_queue.dart';
 import 'package:grey_page_media_player/src/readers/video_reader.dart';
 import 'package:npxl_video/npxl_video.dart';
 import 'package:npxl_video/generated/npxl_video.pb.dart';
+import 'package:grey_page_media_player/src/void_extensions.dart';
 
 /// Reads a video from a [RandomAccessByteInputStream].
 ///
 /// TODO(Batandwa): Clean
 class StreamVideoReader implements VideoReader {
   final RandomAccessByteInputStream source;
-  final TimedMediaQueue<StreamReadableMediaPage> mediaPages =
+  final TimedMediaQueue<MediaPageHeader> mediaPageHeaders =
       TimedMediaQueue.makeEmptyQueue();
 
   VideoHeader _header;
@@ -25,16 +26,29 @@ class StreamVideoReader implements VideoReader {
   }
 
   @override
-  Future<List<ReadableMediaPage>> getMediaPagesInRange(
+  Future<List<ReadableMediaPageWithHeader>> getMediaPagesInRange(
       Duration inclusiveStart, Duration exclusiveEnd) async {
-    final ret = <ReadableMediaPage>[];
-    final mediaPagesInRange =
-        mediaPages.getMediaInRange(inclusiveStart, exclusiveEnd);
-    for (var mediaPage in mediaPagesInRange) {
-      final audio = await mediaPage.compressedAudioStream
-          .readBytes(0, mediaPage.sizeOfCompressedAudioInBytes);
+    final ret = <ReadableMediaPageWithHeader>[];
+    final mediaPageHeadersInRange =
+        mediaPageHeaders.getMediaInRange(inclusiveStart, exclusiveEnd);
 
-      ret.add(ReadableMediaPage(mediaPage.header, audio));
+    for (var mediaPageHeader in mediaPageHeadersInRange) {
+      try {
+        final start = mediaPageHeader.mediaPageDataRange.start;
+        final end = mediaPageHeader.mediaPageDataRange.end;
+        final mediaPageBinaryData =
+            await _mediaPagesInputStream.readBytes(start, end - start);
+
+        ret.add(ReadableMediaPageWithHeader.from(
+          header: mediaPageHeader,
+          readableMediaPage: readMediaPage(mediaPageBinaryData),
+        ));
+      } on IOException {
+        rethrow;
+      } catch (e) {
+        // The media page must be corrupted, we therefore insert a void instance.
+        ret.add(ReadableMediaPageWithHeader.voidInstance());
+      }
     }
 
     return ret;
@@ -48,8 +62,8 @@ class StreamVideoReader implements VideoReader {
   @override
   Future<void> initialise() async {
     await loadVideoHeader();
-    for (var range in _header.mediaPageDataRanges) {
-      await fetchAndRegisterMediaPageInRange(range);
+    for (var mediaPageHeader in _header.mediaPageHeaders) {
+      await queueMediaPageWithHeader(mediaPageHeader);
     }
   }
 
@@ -73,84 +87,50 @@ class StreamVideoReader implements VideoReader {
         offsetToFirstByteOfFirstMediaPage, source);
   }
 
-  Future<void> fetchAndRegisterMediaPageInRange(DataRange range) async {
-    StreamReadableMediaPage mediaPage = StreamReadableMediaPage.voidInstance();
-
-    try {
-      final headerSize = getUnsigned32BitIntFromUint8List(
-          await _mediaPagesInputStream.readBytes(range.start + 2, 4));
-      final headerBinaryData =
-          await _mediaPagesInputStream.readBytes(range.start + 6, headerSize);
-
-      final header = MediaPageHeader.fromBuffer(headerBinaryData);
-      final compressedAudioStream = SkippingRandomAccessByteInputStream(
-          range.start + 6 + headerSize, _mediaPagesInputStream);
-
-      mediaPage = StreamReadableMediaPage(header, compressedAudioStream,
-          range.end - range.start - 6 - headerSize);
-    } on IOException catch (e) {
-      // Failed to fetch Media Page
-      throw e;
-    } catch (e) {
-      // The media page must be corrupted.
-      // We'll insert a void instance
-    }
-
+  Future<void> queueMediaPageWithHeader(MediaPageHeader header) async {
     Duration lastEndSeekPosition = Duration.zero;
     Duration durationOfLastRegisteredMediaPage = Duration.zero;
     try {
       void fetchLastMediaPageAttributes() {
-        lastEndSeekPosition = mediaPages.lastItem.startSeekPosition +
-            mediaPages.lastItem.mediaLength;
-        durationOfLastRegisteredMediaPage = mediaPages.lastItem.mediaLength;
+        lastEndSeekPosition = mediaPageHeaders.lastItem.endSeekPosition;
+        durationOfLastRegisteredMediaPage =
+            mediaPageHeaders.lastItem.mediaLength;
       }
 
       fetchLastMediaPageAttributes();
 
       // Add void Media Pages for missing media pages
-      if (!mediaPage.isVoid && !mediaPages.lastItem.media.isVoid) {
-        int numberOfMissingMediaPages = mediaPage.header.mediaPageNumber -
-            mediaPages.lastItem.media.header.mediaPageNumber -
+      if (mediaPageHeaders.lastItem.media.isNotVoid) {
+        int numberOfMissingMediaPages = header.mediaPageNumber -
+            mediaPageHeaders.lastItem.media.mediaPageNumber -
             1;
 
         if (numberOfMissingMediaPages.isNegative)
           throw 'Bad Media Page Ordering. A Media Page coming after this one has already been registered';
 
         while (numberOfMissingMediaPages > 0) {
-          mediaPages.add(StreamReadableMediaPage.voidInstance(),
-              lastEndSeekPosition, durationOfLastRegisteredMediaPage);
+          mediaPageHeaders.add(MediaPageHeader(), lastEndSeekPosition,
+              durationOfLastRegisteredMediaPage);
           numberOfMissingMediaPages--;
           fetchLastMediaPageAttributes();
         }
       }
     } catch (_) {
-      // We'll insert the media page we currently have.
+      // There is no last item or there is bad media page ordering.
+      // We'll insert the media page header we currently have.
     }
 
-    final mediaPageDuration = mediaPage.isVoid
-        ? durationOfLastRegisteredMediaPage
-        : Duration(milliseconds: mediaPage.header.pageDurationInMillis);
-    mediaPages.add(mediaPage, lastEndSeekPosition, mediaPageDuration);
+    mediaPageHeaders.add(
+      header,
+      lastEndSeekPosition,
+      Duration(milliseconds: header.pageDurationInMillis),
+    );
   }
 
   static StreamVideoReader fromFile(String filePath) {
     final file = File(filePath);
     return StreamVideoReader(FileRandomAccessByteInputStream(file.openSync()));
   }
-}
-
-class StreamReadableMediaPage {
-  final MediaPageHeader header;
-  final RandomAccessByteInputStream compressedAudioStream;
-  final int sizeOfCompressedAudioInBytes;
-
-  StreamReadableMediaPage(this.header, this.compressedAudioStream,
-      this.sizeOfCompressedAudioInBytes);
-
-  bool get isVoid => header == null;
-
-  factory StreamReadableMediaPage.voidInstance() => StreamReadableMediaPage(
-      null, InMemoryRandomAccessByteInputStream(Uint8List(0)), 0);
 }
 
 class FileRandomAccessByteInputStream implements RandomAccessByteInputStream {

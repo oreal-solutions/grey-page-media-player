@@ -13,47 +13,68 @@ void main() {
 
   setUp(() async {
     final mediaPageBuilders = [
+      MediaPageBuilder(),
       MediaPageBuilder()
-        ..setMediaPageDurationInMillis(Duration(seconds: 2).inMilliseconds)
-        ..setMediaPageNumber(1),
+        ..setCompressedAudioData(Uint8List.fromList([0xbb, 0xcc])),
       MediaPageBuilder()
-        ..setMediaPageDurationInMillis(Duration(seconds: 3).inMilliseconds)
-        ..setCompressedAudioData(Uint8List.fromList([0xbb, 0xcc]))
-        ..setMediaPageNumber(2),
-      MediaPageBuilder()
-        ..setMediaPageDurationInMillis(Duration(seconds: 1).inMilliseconds)
-        ..setCompressedAudioData(Uint8List.fromList([0xdd, 0xee]))
-        ..setMediaPageNumber(3),
+        ..setCompressedAudioData(Uint8List.fromList([0xdd, 0xee])),
       // <-- 1 missing media page here
-      MediaPageBuilder()
-        ..setMediaPageDurationInMillis(Duration(seconds: 4).inMilliseconds)
-        ..setMediaPageNumber(5),
+      MediaPageBuilder(),
     ];
 
-    final mediaPageDataRanges = <DataRange>[];
+    final mediaPageHeaders = <MediaPageHeader>[
+      MediaPageHeader(
+        mediaPageNumber: 1,
+        pageDurationInMillis: Duration(seconds: 2).inMilliseconds,
+      ),
+      MediaPageHeader(
+        mediaPageNumber: 2,
+        pageDurationInMillis: Duration(seconds: 3).inMilliseconds,
+      ),
+      MediaPageHeader(
+        mediaPageNumber: 3,
+        pageDurationInMillis: Duration(seconds: 1).inMilliseconds,
+      ),
+      // <-- 1 missing media page here
+      MediaPageHeader(
+        mediaPageNumber: 5,
+        pageDurationInMillis: Duration(seconds: 4).inMilliseconds,
+      ),
+    ];
+
     final mediaPagesBinaryData = <int>[];
 
     int lastEndIndex = 0;
-    for (var builder in mediaPageBuilders) {
+    for (var iii = 0; iii < mediaPageHeaders.length; iii++) {
+      final builder = mediaPageBuilders[iii];
       final binaryData = await builder.build();
       mediaPagesBinaryData.addAll(binaryData);
 
-      mediaPageDataRanges.add(DataRange(
-          start: lastEndIndex, end: lastEndIndex + binaryData.length));
+      mediaPageHeaders[iii].mediaPageDataRange = DataRange(
+        start: lastEndIndex,
+        end: lastEndIndex + binaryData.length,
+      );
+
       lastEndIndex = lastEndIndex + binaryData.length;
     }
 
     // Add the corrupted media page,
     mediaPagesBinaryData.addAll([0xaa, 0xbb, 0xcc]);
-    mediaPageDataRanges
-        .add(DataRange(start: lastEndIndex, end: lastEndIndex + 3));
+    mediaPageHeaders.add(
+      MediaPageHeader(
+        mediaPageNumber: 6,
+        pageDurationInMillis: Duration(seconds: 4).inMilliseconds,
+        mediaPageDataRange:
+            DataRange(start: lastEndIndex, end: lastEndIndex + 3),
+      ),
+    );
 
     final videoBuilder = VideoBuilder();
     videoBuilder.setAudioProperties(AudioProperties(samplingRate: 48000));
-    videoBuilder.setMediaPageDataRanges(mediaPageDataRanges);
+    videoBuilder.setMediaPageHeaders(mediaPageHeaders);
     videoBuilder.setMediaPagesInputStream(InMemoryRandomAccessByteInputStream(
         Uint8List.fromList(mediaPagesBinaryData)));
-    // Corrupted and missing Media Pages are given the same length as the last valid
+    // Missing Media Pages are given the same length as the last valid
     // media page before them.
     videoBuilder.setVideoDurationInMillis(Duration(seconds: 15).inMilliseconds);
 

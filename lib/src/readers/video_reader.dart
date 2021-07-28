@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 import 'package:npxl_video/generated/npxl_video.pb.dart';
 import 'package:npxl_video/npxl_video.dart';
 
@@ -34,7 +37,7 @@ abstract class VideoReader {
   /// If the first media page in this range overlaps [start], it will also
   /// be returned. Likewise, if the last media page in this range overlaps
   /// [end], it will also be returned.
-  Future<List<ReadableMediaPage>> getMediaPagesInRange(
+  Future<List<ReadableMediaPageWithHeader>> getMediaPagesInRange(
       Duration inclusiveStart, Duration exclusiveEnd);
 
   /// Returns the audio properties of the video.
@@ -50,4 +53,22 @@ abstract class VideoReader {
   /// This is called by a [MediaPlayer] when it is discarding this
   /// [VideoReader].
   void release();
+}
+
+class ReadableMediaPageWithHeader extends ReadableMediaPage {
+  final MediaPageHeader header;
+  ReadableMediaPageWithHeader(this.header, RenderingInstructions vectorFrame,
+      Uint8List compressedAudioData)
+      : super(vectorFrame, compressedAudioData);
+
+  factory ReadableMediaPageWithHeader.from({
+    @required MediaPageHeader header,
+    @required ReadableMediaPage readableMediaPage,
+  }) {
+    return ReadableMediaPageWithHeader(header, readableMediaPage.vectorFrame,
+        readableMediaPage.compressedAudioData);
+  }
+
+  factory ReadableMediaPageWithHeader.voidInstance() =>
+      ReadableMediaPageWithHeader(null, RenderingInstructions(), Uint8List(0));
 }

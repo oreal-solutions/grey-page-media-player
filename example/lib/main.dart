@@ -1,8 +1,6 @@
-import 'dart:typed_data';
-
+import 'package:example/video.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:npxl_video/npxl_video.dart' as npxl;
 import 'package:grey_page_media_player/grey_page_media_player.dart';
 
 void main() {
@@ -125,104 +123,5 @@ class _MyHomePageState extends State<MyHomePage> {
               ],
             ),
     );
-  }
-
-  Future<VideoReader> makeTestVideo() async {
-    // Generates a simple 4 seconds test video with 4 media pages where
-    // each media page is 1 seconds long. Each media page has a different
-    // color.
-    //
-    // In each media page we draw a square path. The first media page has
-    // the square at its top left corner. The second media page has the
-    // square at its top right corner, and so on.
-    final oneSecondInMillis = 1000;
-    final viewport = npxl.Viewport(
-      height: 20,
-      width: 20,
-      topLeftCorner: npxl.Point(dx: 0, dy: 0),
-    );
-
-    npxl.PathPoint makePathPointAt(double dx, double dy) {
-      return npxl.PathPoint(
-        coordinates: npxl.Point(dx: dx, dy: dy),
-        pressure: 1,
-      );
-    }
-
-    Iterable<npxl.PathPoint> squarePathAtTopLeftCorner(
-        double cornerX, double cornerY) {
-      return [
-        makePathPointAt(0 + cornerX, 0 + cornerY),
-        makePathPointAt(10 + cornerX, 0 + cornerY),
-        makePathPointAt(10 + cornerX, 10 + cornerY),
-        makePathPointAt(0 + cornerX, 10 + cornerY),
-      ];
-    }
-
-    npxl.MediaPageBuilder makeMediaPageBuilder(
-        {@required Color backgroundColor,
-        @required Iterable<npxl.PathPoint> points,
-        @required int mediaPageNumber}) {
-      return npxl.MediaPageBuilder()
-        ..setMediaPageDurationInMillis(oneSecondInMillis)
-        ..setMediaPageNumber(mediaPageNumber)
-        ..setVectorFrame(npxl.RenderingInstructions(
-          viewport: viewport,
-          backgroundColor: npxl.Color(value: backgroundColor.value),
-          paths: [
-            npxl.Path(
-              color: npxl.Color(value: Colors.red.value),
-              strokeWidth: 2,
-              points: points,
-            )
-          ],
-        ));
-    }
-
-    final mediaPageBuilders = [
-      makeMediaPageBuilder(
-          backgroundColor: Colors.blue,
-          points: squarePathAtTopLeftCorner(0, 0),
-          mediaPageNumber: 1),
-      makeMediaPageBuilder(
-          backgroundColor: Colors.green,
-          points: squarePathAtTopLeftCorner(10, 0),
-          mediaPageNumber: 2),
-      makeMediaPageBuilder(
-          backgroundColor: Colors.orange,
-          points: squarePathAtTopLeftCorner(10, 10),
-          mediaPageNumber: 3),
-      makeMediaPageBuilder(
-          backgroundColor: Colors.purple,
-          points: squarePathAtTopLeftCorner(0, 10),
-          mediaPageNumber: 4),
-    ];
-
-    final mediaPageDataRanges = <npxl.DataRange>[];
-    final mediaPagesBinaryData = <int>[];
-
-    int lastEndIndex = 0;
-    for (var builder in mediaPageBuilders) {
-      final binaryData = await builder.build();
-      mediaPagesBinaryData.addAll(binaryData);
-
-      mediaPageDataRanges.add(npxl.DataRange(
-          start: lastEndIndex, end: lastEndIndex + binaryData.length));
-      lastEndIndex = lastEndIndex + binaryData.length;
-    }
-
-    final videoBuilder = npxl.VideoBuilder();
-    videoBuilder.setMediaPageDataRanges(mediaPageDataRanges);
-    videoBuilder.setMediaPagesInputStream(
-        npxl.InMemoryRandomAccessByteInputStream(
-            Uint8List.fromList(mediaPagesBinaryData)));
-    videoBuilder.setVideoDurationInMillis(4 * oneSecondInMillis);
-
-    // We can write test video to file if we want.
-    final testVideo =
-        npxl.InMemoryRandomAccessByteInputStream(await videoBuilder.build());
-    print("Test video size in bytes = ${testVideo.data.lengthInBytes}");
-
-    return StreamVideoReader(testVideo);
   }
 }

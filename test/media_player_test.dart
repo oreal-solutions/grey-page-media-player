@@ -14,7 +14,7 @@ import 'package:grey_page_media_player/src/void_extensions.dart';
 class StubbedVideoReader implements VideoReader {
   final Duration duration;
   final AudioProperties audioProperties;
-  final List<ReadableMediaPage> mediaPages;
+  final List<ReadableMediaPageWithHeader> mediaPages;
 
   bool wasInitialised = false;
   bool wasReleased = false;
@@ -24,7 +24,7 @@ class StubbedVideoReader implements VideoReader {
 
   Future<Duration> getVideoDuration() async => duration;
 
-  Future<List<ReadableMediaPage>> getMediaPagesInRange(
+  Future<List<ReadableMediaPageWithHeader>> getMediaPagesInRange(
           Duration start, Duration end) async =>
       mediaPages;
 
@@ -45,39 +45,39 @@ class MockPCM16AudioPlayer extends Mock implements PCM16AudioPlayer {}
 
 class MockOpus16Decoder extends Mock implements Opus16Decoder {}
 
-final readableMediaPage2Seconds = ReadableMediaPage(
+final readableMediaPage2Seconds = ReadableMediaPageWithHeader(
   MediaPageHeader(
     mediaPageNumber: 0,
     pageDurationInMillis: Duration(seconds: 2).inMilliseconds,
-    vectorFrame: RenderingInstructions(viewport: Viewport(width: 200)),
   ),
+  RenderingInstructions(viewport: Viewport(width: 200)),
   Uint8List.fromList([0xaa, 0xbb, 0xcc]),
 );
 
-final readableMediaPage1Second = ReadableMediaPage(
+final readableMediaPage1Second = ReadableMediaPageWithHeader(
   MediaPageHeader(
     mediaPageNumber: 1,
     pageDurationInMillis: Duration(seconds: 1).inMilliseconds,
-    vectorFrame: RenderingInstructions(viewport: Viewport(width: 100)),
   ),
+  RenderingInstructions(viewport: Viewport(width: 100)),
   Uint8List.fromList([0xdd, 0xee, 0xff]),
 );
 
-final readableMediaPage3Seconds = ReadableMediaPage(
+final readableMediaPage3Seconds = ReadableMediaPageWithHeader(
   MediaPageHeader(
     mediaPageNumber: 2,
     pageDurationInMillis: Duration(seconds: 3).inMilliseconds,
-    vectorFrame: RenderingInstructions(viewport: Viewport(width: 300)),
   ),
+  RenderingInstructions(viewport: Viewport(width: 300)),
   Uint8List.fromList([0xab, 0xbc, 0xcd]),
 );
 
-final readableMediaPage10Seconds = ReadableMediaPage(
+final readableMediaPage10Seconds = ReadableMediaPageWithHeader(
   MediaPageHeader(
     mediaPageNumber: 3,
     pageDurationInMillis: Duration(seconds: 10).inMilliseconds,
-    vectorFrame: RenderingInstructions(viewport: Viewport(width: 400)),
   ),
+  RenderingInstructions(viewport: Viewport(width: 400)),
   Uint8List.fromList([0xac, 0xcd, 0xef]),
 );
 
@@ -349,7 +349,7 @@ void main() {
         instance.seek(to: Duration.zero);
 
         expect(instance.getCurrentVectorFrame(),
-            readableMediaPage2Seconds.header.vectorFrame);
+            readableMediaPage2Seconds.vectorFrame);
       });
       test("Should return the frame at the current seekPosition", () async {
         final instance = MediaPlayer.makeInstance();
@@ -371,7 +371,7 @@ void main() {
                 seconds: 3, milliseconds: 500)); // 3.5 seconds into the video
 
         expect(instance.getCurrentVectorFrame(),
-            readableMediaPage3Seconds.header.vectorFrame);
+            readableMediaPage3Seconds.vectorFrame);
       });
       test(
           "Should return last frame in the video when seekPosition equals the duration of the video",
@@ -393,7 +393,7 @@ void main() {
         instance.seek(to: Duration(seconds: 6));
 
         expect(instance.getCurrentVectorFrame(),
-            readableMediaPage1Second.header.vectorFrame);
+            readableMediaPage1Second.vectorFrame);
       });
       test(
           "Should return the last frame in the video when seekPosition is greater than the duration of the video",
@@ -415,7 +415,7 @@ void main() {
         instance.seek(to: Duration(seconds: 10));
 
         expect(instance.getCurrentVectorFrame(),
-            readableMediaPage1Second.header.vectorFrame);
+            readableMediaPage1Second.vectorFrame);
       });
 
       group("When the vector frame at the current seekPosition is void", () {
@@ -427,8 +427,10 @@ void main() {
               audioProperties: AudioProperties(),
               mediaPages: [
                 readableMediaPage2Seconds,
-                ReadableMediaPage(null, Uint8List(0)), // length is 2s
-                ReadableMediaPage(null, Uint8List(0)), // length is 2s
+                ReadableMediaPageWithHeader(null, RenderingInstructions(),
+                    Uint8List(0)), // length is 2s
+                ReadableMediaPageWithHeader(null, RenderingInstructions(),
+                    Uint8List(0)), // length is 2s
                 readableMediaPage3Seconds,
                 readableMediaPage1Second
               ]));
@@ -440,7 +442,7 @@ void main() {
           instance.seek(to: Duration(seconds: 5));
 
           expect(instance.getCurrentVectorFrame(),
-              readableMediaPage2Seconds.header.vectorFrame);
+              readableMediaPage2Seconds.vectorFrame);
         });
         group(
             "When there are no vector frames coming before the requested vector frame",
@@ -451,8 +453,10 @@ void main() {
                 duration: Duration.zero,
                 audioProperties: AudioProperties(),
                 mediaPages: [
-                  ReadableMediaPage(null, Uint8List(0)), // length is 2s
-                  ReadableMediaPage(null, Uint8List(0)), // length is 2s
+                  ReadableMediaPageWithHeader(null, RenderingInstructions(),
+                      Uint8List(0)), // length is 2s
+                  ReadableMediaPageWithHeader(null, RenderingInstructions(),
+                      Uint8List(0)), // length is 2s // length is 2s
                   readableMediaPage3Seconds,
                   readableMediaPage1Second
                 ]));
@@ -464,7 +468,7 @@ void main() {
             instance.seek(to: Duration.zero);
 
             expect(instance.getCurrentVectorFrame(),
-                readableMediaPage3Seconds.header.vectorFrame);
+                readableMediaPage3Seconds.vectorFrame);
           });
         });
       });
@@ -533,7 +537,7 @@ void main() {
           instance.seek(to: Duration.zero);
 
           expect(instance.getCurrentVectorFrameAndPushAudio(),
-              readableMediaPage2Seconds.header.vectorFrame);
+              readableMediaPage2Seconds.vectorFrame);
 
           verify(audioPlayer.writeToBuffer(Uint8List.fromList([0xcc, 0xbb])))
               .called(1);
@@ -568,7 +572,7 @@ void main() {
                   seconds: 3, milliseconds: 500)); // 3.5 seconds into the video
 
           expect(instance.getCurrentVectorFrameAndPushAudio(),
-              readableMediaPage3Seconds.header.vectorFrame);
+              readableMediaPage3Seconds.vectorFrame);
 
           verify(audioPlayer.writeToBuffer(Uint8List.fromList([0xaa, 0xbb])))
               .called(1);
@@ -601,7 +605,7 @@ void main() {
           instance.seek(to: Duration(seconds: 6));
 
           expect(instance.getCurrentVectorFrameAndPushAudio(),
-              readableMediaPage1Second.header.vectorFrame);
+              readableMediaPage1Second.vectorFrame);
 
           verify(audioPlayer.writeToBuffer(Uint8List.fromList([0xaa, 0xdd])))
               .called(1);
@@ -634,7 +638,7 @@ void main() {
           instance.seek(to: Duration(seconds: 10));
 
           expect(instance.getCurrentVectorFrameAndPushAudio(),
-              readableMediaPage1Second.header.vectorFrame);
+              readableMediaPage1Second.vectorFrame);
 
           verify(audioPlayer.writeToBuffer(Uint8List.fromList([0xaa, 0xdd])))
               .called(1);
@@ -648,8 +652,10 @@ void main() {
                   duration: Duration.zero,
                   audioProperties: AudioProperties(),
                   mediaPages: [
-                    ReadableMediaPage(
-                        readableMediaPage2Seconds.header, Uint8List(0)),
+                    ReadableMediaPageWithHeader(
+                        readableMediaPage2Seconds.header,
+                        RenderingInstructions(),
+                        Uint8List(0)),
                   ]),
               opus16decoder: audioDecoder,
               pcm16audioPlayer: audioPlayer,
@@ -716,8 +722,10 @@ void main() {
                 audioProperties: AudioProperties(),
                 mediaPages: [
                   readableMediaPage2Seconds,
-                  ReadableMediaPage(null, Uint8List(0)), // length is 2s
-                  ReadableMediaPage(null, Uint8List(0)), // length is 2s
+                  ReadableMediaPageWithHeader(null, RenderingInstructions(),
+                      Uint8List(0)), // length is 2s
+                  ReadableMediaPageWithHeader(null, RenderingInstructions(),
+                      Uint8List(0)), // length is 2s
                   readableMediaPage3Seconds,
                   readableMediaPage1Second
                 ]),
@@ -735,7 +743,7 @@ void main() {
           instance.seek(to: Duration(seconds: 5));
 
           expect(instance.getCurrentVectorFrameAndPushAudio(),
-              readableMediaPage2Seconds.header.vectorFrame);
+              readableMediaPage2Seconds.vectorFrame);
 
           verify(audioPlayer.writeToBuffer(Uint8List.fromList([0xaa, 0xdd])))
               .called(1);
@@ -753,8 +761,10 @@ void main() {
                   duration: Duration.zero,
                   audioProperties: AudioProperties(),
                   mediaPages: [
-                    ReadableMediaPage(null, Uint8List(0)), // length is 2s
-                    ReadableMediaPage(null, Uint8List(0)), // length is 2s
+                    ReadableMediaPageWithHeader(null, RenderingInstructions(),
+                        Uint8List(0)), // length is 2s
+                    ReadableMediaPageWithHeader(null, RenderingInstructions(),
+                        Uint8List(0)), // length is 2s
                     readableMediaPage3Seconds,
                     readableMediaPage1Second
                   ]),
@@ -773,7 +783,7 @@ void main() {
             instance.seek(to: Duration.zero);
 
             expect(instance.getCurrentVectorFrameAndPushAudio(),
-                readableMediaPage3Seconds.header.vectorFrame);
+                readableMediaPage3Seconds.vectorFrame);
 
             verify(audioPlayer.writeToBuffer(Uint8List.fromList([0xaa, 0xdd])))
                 .called(1);
